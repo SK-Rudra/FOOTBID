@@ -1,0 +1,475 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum PreferredFoot {
+  LEFT
+  RIGHT
+  BOTH
+}
+
+enum PlayerPosition {
+  GK
+  LB
+  LWB
+  CB
+  RB
+  RWB
+  CDM
+  CM
+  CAM
+  LM
+  RM
+  LW
+  RW
+  CF
+  ST
+}
+
+enum ContentTier {
+  FREE
+  PREMIUM
+}
+
+enum MatchStatus {
+  WAITING
+  AUCTION
+  SQUAD_BUILDING
+  READY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ParticipantSide {
+  PLAYER_ONE
+  PLAYER_TWO
+}
+
+enum ParticipantStatus {
+  CONNECTED
+  READY
+  DISCONNECTED
+  LEFT
+}
+
+enum AuctionType {
+  PLAYER
+  MANAGER
+  FORMATION
+}
+
+enum AuctionStatus {
+  WAITING
+  ACTIVE
+  LAST_CALL
+  SOLD
+  UNSOLD
+  CANCELLED
+}
+
+enum SquadRole {
+  STARTER
+  SUBSTITUTE
+  RESERVE
+}
+
+enum MatchEventType {
+  KICKOFF
+  GOAL
+  OWN_GOAL
+  YELLOW_CARD
+  RED_CARD
+  SUBSTITUTION
+  INJURY
+  PENALTY_SCORED
+  PENALTY_MISSED
+  HALF_TIME
+  SECOND_HALF_START
+  FULL_TIME
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique @db.VarChar(320)
+  username     String        @unique @db.VarChar(32)
+  passwordHash String        @db.VarChar(255)
+  displayName  String        @db.VarChar(80)
+  avatarUrl    String?       @db.Text
+  role         UserRole      @default(USER)
+  status       AccountStatus @default(ACTIVE)
+  lastSeenAt   DateTime?     @db.Timestamptz(3)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
+
+  hostedMatches     Match[]            @relation("MatchHost")
+  wonMatches        Match[]            @relation("MatchWinner")
+  matchParticipants MatchParticipant[]
+  ranking           Ranking?
+
+  @@index([status])
+  @@index([role])
+}
+
+model League {
+  id             String   @id @default(cuid())
+  name           String   @db.VarChar(100)
+  slug           String   @unique @db.VarChar(120)
+  countryCode    String   @db.Char(2)
+  logoUrl        String?  @db.Text
+  logoLicense    String?  @db.VarChar(255)
+  sourceProvider String?  @db.VarChar(80)
+  sourceLeagueId String?  @db.VarChar(100)
+  dataVersion    String   @default("1.0.0") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  clubs    Club[]
+  players  Player[]
+  managers Manager[]
+
+  @@unique([countryCode, name])
+  @@unique([sourceProvider, sourceLeagueId])
+  @@index([countryCode])
+}
+
+model Club {
+  id             String   @id @default(cuid())
+  leagueId       String?
+  name           String   @db.VarChar(100)
+  shortName      String   @db.VarChar(20)
+  countryCode    String   @db.Char(2)
+  logoUrl        String?  @db.Text
+  logoLicense    String?  @db.VarChar(255)
+  sourceProvider String?  @db.VarChar(80)
+  sourceClubId   String?  @db.VarChar(100)
+  dataVersion    String   @default("1.0.0") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  league            League?            @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  players           Player[]
+  managers          Manager[]
+  selectedByPlayers MatchParticipant[]
+
+  @@unique([leagueId, name])
+  @@unique([sourceProvider, sourceClubId])
+  @@index([leagueId])
+  @@index([countryCode])
+}
+
+model Player {
+  id                 String           @id @default(cuid())
+  leagueId           String?
+  clubId             String?
+  fullName           String           @db.VarChar(120)
+  shortName          String           @db.VarChar(80)
+  nationalityCode    String           @db.Char(2)
+  dateOfBirth        DateTime?        @db.Date
+  primaryPosition    PlayerPosition
+  secondaryPositions PlayerPosition[] @default([])
+  preferredFoot      PreferredFoot
+  overall            Int
+  pace               Int
+  shooting           Int
+  passing            Int
+  dribbling          Int
+  defending          Int
+  physical           Int
+  goalkeeping        Int              @default(0)
+  marketValue        Int              @default(0)
+  imageUrl           String?          @db.Text
+  imageLicense       String?          @db.VarChar(255)
+  sourceProvider     String?          @db.VarChar(80)
+  sourcePlayerId     String?          @db.VarChar(100)
+  sourceUrl          String?          @db.Text
+  dataVersion        String           @default("1.0.0") @db.VarChar(32)
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+
+  league      League?       @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  club        Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  auctions    Auction[]
+  squadSlots  SquadPlayer[]
+  matchEvents MatchEvent[]
+
+  @@unique([sourceProvider, sourcePlayerId])
+  @@index([leagueId])
+  @@index([clubId])
+  @@index([primaryPosition])
+  @@index([overall])
+  @@index([nationalityCode])
+}
+
+model Manager {
+  id              String      @id @default(cuid())
+  leagueId        String?
+  clubId          String?
+  fullName        String      @db.VarChar(120)
+  nationalityCode String      @db.Char(2)
+  tacticalStyle   String?     @db.VarChar(80)
+  overall         Int
+  attacking       Int
+  defending       Int
+  adaptability    Int
+  manManagement   Int
+  tier            ContentTier @default(PREMIUM)
+  isNeutral       Boolean     @default(false)
+  imageUrl        String?     @db.Text
+  imageLicense    String?     @db.VarChar(255)
+  sourceProvider  String?     @db.VarChar(80)
+  sourceManagerId String?     @db.VarChar(100)
+  dataVersion     String      @default("1.0.0") @db.VarChar(32)
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+
+  league   League?   @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  club     Club?     @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  auctions Auction[]
+  squads   Squad[]
+
+  @@unique([sourceProvider, sourceManagerId])
+  @@index([leagueId])
+  @@index([clubId])
+  @@index([tier, isNeutral])
+}
+
+model Formation {
+  id          String      @id @default(cuid())
+  code        String      @unique @db.VarChar(20)
+  name        String      @unique @db.VarChar(80)
+  description String?     @db.Text
+  shape       Json        @db.JsonB
+  tier        ContentTier @default(FREE)
+  isNeutral   Boolean     @default(false)
+  dataVersion String      @default("1.0.0") @db.VarChar(32)
+  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime    @updatedAt @db.Timestamptz(3)
+
+  auctions Auction[]
+  squads   Squad[]
+
+  @@index([tier, isNeutral])
+}
+
+model Match {
+  id                   String      @id @default(cuid())
+  roomCode             String      @unique @db.VarChar(12)
+  createdById          String
+  winnerUserId         String?
+  status               MatchStatus @default(WAITING)
+  budgetPerParticipant Int         @default(150000000)
+  playerOneScore       Int         @default(0)
+  playerTwoScore       Int         @default(0)
+  simulationSeed       String?     @db.VarChar(128)
+  rulesVersion         String      @default("1.0.0") @db.VarChar(32)
+  dataVersion          String      @default("1.0.0") @db.VarChar(32)
+  scheduledAt          DateTime?   @db.Timestamptz(3)
+  startedAt            DateTime?   @db.Timestamptz(3)
+  completedAt          DateTime?   @db.Timestamptz(3)
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
+
+  createdBy     User               @relation("MatchHost", fields: [createdById], references: [id], onDelete: Restrict)
+  winner        User?              @relation("MatchWinner", fields: [winnerUserId], references: [id], onDelete: SetNull)
+  participants  MatchParticipant[]
+  squadsPlayers SquadPlayer[]
+  auctions      Auction[]
+  events        MatchEvent[]
+
+  @@index([createdById])
+  @@index([winnerUserId])
+  @@index([status, createdAt])
+}
+
+model MatchParticipant {
+  id              String            @id @default(cuid())
+  matchId         String
+  userId          String
+  selectedClubId  String?
+  side            ParticipantSide
+  status          ParticipantStatus @default(CONNECTED)
+  startingBudget  Int               @default(150000000)
+  availableBudget Int               @default(150000000)
+  reservedBudget  Int               @default(0)
+  spentBudget     Int               @default(0)
+  joinedAt        DateTime          @default(now()) @db.Timestamptz(3)
+  readyAt         DateTime?         @db.Timestamptz(3)
+  disconnectedAt  DateTime?         @db.Timestamptz(3)
+  lastSeenAt      DateTime          @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
+
+  match        Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  selectedClub Club?        @relation(fields: [selectedClubId], references: [id], onDelete: SetNull)
+  squad        Squad?
+  bids         Bid[]
+  wonAuctions  Auction[]    @relation("AuctionWinner")
+  events       MatchEvent[]
+
+  @@unique([matchId, userId])
+  @@unique([matchId, side])
+  @@index([userId, status])
+  @@index([selectedClubId])
+}
+
+model Squad {
+  id            String @id @default(cuid())
+  participantId String @unique
+  formationId   String
+  managerId     String
+  name          String @default("Match Squad") @db.VarChar(80)
+  chemistry     Int    @default(0)
+  overallRating Int    @default(0)
+
+  /// Server-only until kickoff. Never expose this field in pre-match API responses.
+  tactics   Json?     @db.JsonB
+  isLocked  Boolean   @default(false)
+  lockedAt  DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  formation   Formation        @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  manager     Manager          @relation(fields: [managerId], references: [id], onDelete: Restrict)
+  players     SquadPlayer[]
+
+  @@index([formationId])
+  @@index([managerId])
+  @@index([isLocked])
+}
+
+model SquadPlayer {
+  id               String         @id @default(cuid())
+  matchId          String
+  squadId          String
+  playerId         String
+  slot             Int
+  role             SquadRole      @default(STARTER)
+  assignedPosition PlayerPosition
+  acquisitionPrice Int            @default(0)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
+
+  match  Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  squad  Squad  @relation(fields: [squadId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@unique([matchId, playerId])
+  @@unique([squadId, playerId])
+  @@unique([squadId, slot])
+  @@index([playerId])
+  @@index([role])
+}
+
+model Auction {
+  id                  String        @id @default(cuid())
+  matchId             String
+  playerId            String?
+  managerId           String?
+  formationId         String?
+  winnerParticipantId String?
+  type                AuctionType
+  status              AuctionStatus @default(WAITING)
+  openingPrice        Int
+  currentPrice        Int
+  minimumIncrement    Int           @default(100000)
+  version             Int           @default(0)
+  startsAt            DateTime?     @db.Timestamptz(3)
+  endsAt              DateTime?     @db.Timestamptz(3)
+  lastCallAt          DateTime?     @db.Timestamptz(3)
+  soldAt              DateTime?     @db.Timestamptz(3)
+  createdAt           DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
+
+  match             Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player            Player?           @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  manager           Manager?          @relation(fields: [managerId], references: [id], onDelete: Restrict)
+  formation         Formation?        @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  winnerParticipant MatchParticipant? @relation("AuctionWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+  bids              Bid[]
+
+  @@unique([matchId, playerId])
+  @@unique([matchId, managerId])
+  @@unique([matchId, formationId])
+  @@index([matchId, status])
+  @@index([status, endsAt])
+  @@index([winnerParticipantId])
+}
+
+model Bid {
+  id            String   @id @default(cuid())
+  auctionId     String
+  participantId String
+  amount        Int
+  sequence      Int
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  auction     Auction          @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([auctionId, sequence])
+  @@index([auctionId, amount])
+  @@index([participantId, createdAt])
+}
+
+model MatchEvent {
+  id            String         @id @default(cuid())
+  matchId       String
+  participantId String?
+  playerId      String?
+  type          MatchEventType
+  minute        Int
+  stoppageTime  Int            @default(0)
+  sequence      Int
+  payload       Json?          @db.JsonB
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+
+  match       Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant MatchParticipant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+  player      Player?           @relation(fields: [playerId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, sequence])
+  @@index([matchId, minute, sequence])
+  @@index([participantId])
+  @@index([playerId])
+}
+
+model Ranking {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  rating        Int      @default(1000)
+  gamesPlayed   Int      @default(0)
+  wins          Int      @default(0)
+  draws         Int      @default(0)
+  losses        Int      @default(0)
+  goalsFor      Int      @default(0)
+  goalsAgainst  Int      @default(0)
+  currentStreak Int      @default(0)
+  bestStreak    Int      @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([rating])
+  @@index([wins])
+}

@@ -4,3 +4,4 @@ dist
 coverage
 package-lock.json
 apps/web/next-env.d.ts
+apps/api/src/generated/prisma/

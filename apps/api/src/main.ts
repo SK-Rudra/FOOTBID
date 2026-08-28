@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
@@ -9,6 +10,7 @@ async function bootstrap() {
   const webUrl = process.env.WEB_URL ?? 'http://localhost:3000';
 
   app.setGlobalPrefix('api/v1');
+  app.enableShutdownHooks();
 
   app.enableCors({
     origin: webUrl,
