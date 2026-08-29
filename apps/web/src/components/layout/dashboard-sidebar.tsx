@@ -4,6 +4,7 @@ import {
   Gavel,
   LayoutDashboard,
   LockKeyhole,
+  Search,
   Settings,
   Trophy,
   UsersRound,
@@ -26,6 +27,11 @@ const navigation: NavigationItem[] = [
     label: 'Overview',
     icon: LayoutDashboard,
     href: '/dashboard',
+  },
+  {
+    label: 'Players',
+    icon: Search,
+    href: '/players',
   },
   {
     label: 'Squad',

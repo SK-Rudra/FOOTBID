@@ -8,6 +8,7 @@ import { buttonVariants, Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 
 const navigation = [
+  { label: 'Players', href: '/players' },
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Game format', href: '/#game-format' },
   { label: 'Design system', href: '/#experience' },
