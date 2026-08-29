@@ -15,7 +15,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "test:api": "npm run test --workspace=@footbid/api",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:web": "npm run test --workspace=@footbid/web"
   },
   "engines": {
     "node": ">=24.15.0",

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import { ToastProvider } from '@/components/ui/toast';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -13,14 +14,20 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'FOOTBID',
-  description: 'Bid. Build. Battle. A competitive football auction game.',
+  title: {
+    default: 'FOOTBID — Bid. Build. Battle.',
+    template: '%s | FOOTBID',
+  },
+  description: 'A competitive 1v1 football auction and tactical battle game.',
+  applicationName: 'FOOTBID',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-dvh bg-background font-sans text-foreground">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }
