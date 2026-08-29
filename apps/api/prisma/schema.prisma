@@ -122,9 +122,28 @@ model User {
   wonMatches        Match[]            @relation("MatchWinner")
   matchParticipants MatchParticipant[]
   ranking           Ranking?
+  authSessions      AuthSession[]
 
   @@index([status])
   @@index([role])
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @db.Char(64)
+  expiresAt        DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  lastUsedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  userAgent        String?   @db.VarChar(512)
+  ipAddress        String?   @db.VarChar(45)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 model League {

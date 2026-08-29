@@ -1,21 +1,18 @@
 import 'dotenv/config';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { configureApplication } from './application.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const config = app.get(ConfigService);
 
-  const port = Number(process.env.PORT ?? 4000);
-  const webUrl = process.env.WEB_URL ?? 'http://localhost:3000';
-
-  app.setGlobalPrefix('api/v1');
+  configureApplication(app);
   app.enableShutdownHooks();
 
-  app.enableCors({
-    origin: webUrl,
-    credentials: true,
-  });
+  const port = config.getOrThrow<number>('PORT');
 
   await app.listen(port);
 
