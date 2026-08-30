@@ -10,7 +10,7 @@ import { DashboardSidebar } from '@/components/layout/dashboard-sidebar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
+import { MatchLobbyCard } from '@/components/dashboard/match-lobby-card';
 import { ErrorState } from '@/components/ui/error-state';
 import { LoadingState } from '@/components/ui/loading-state';
 import { useToast } from '@/components/ui/toast';
@@ -276,11 +276,7 @@ export function DashboardView() {
                 </CardContent>
               </Card>
 
-              <EmptyState
-                title="No active match"
-                description="Matchmaking and live game rooms will be introduced in later phases."
-                action={<Badge tone="neutral">Roadmap locked</Badge>}
-              />
+              <MatchLobbyCard />
             </section>
           </div>
         </div>

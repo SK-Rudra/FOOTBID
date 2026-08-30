@@ -30,6 +30,7 @@ const walletSelect = {
       roomCode: true,
       status: true,
       budgetPerParticipant: true,
+      createdById: true,
       createdAt: true,
     },
   },
@@ -76,6 +77,7 @@ interface WalletRecord {
     roomCode: string;
     status: MatchStatus;
     budgetPerParticipant: number;
+    createdById: string;
     createdAt: Date;
   };
 }
@@ -142,6 +144,7 @@ function walletResponse(wallet: WalletRecord) {
     matchId: wallet.matchId,
     roomCode: wallet.match.roomCode,
     matchStatus: wallet.match.status,
+    isHost: wallet.match.createdById === wallet.userId,
     startingBudget: wallet.startingBudget,
     availableBudget: wallet.availableBudget,
     reservedBudget: wallet.reservedBudget,
@@ -309,6 +312,42 @@ export class BudgetsService {
     );
   }
 
+  reserveFundsInTransaction(
+    transactionClient: Prisma.TransactionClient,
+    input: AuctionBudgetOperationInput,
+  ) {
+    return this.executeOperation(
+      input,
+      BudgetTransactionType.RESERVATION,
+      'RESERVE',
+      transactionClient,
+    );
+  }
+
+  releaseFundsInTransaction(
+    transactionClient: Prisma.TransactionClient,
+    input: AuctionBudgetOperationInput,
+  ) {
+    return this.executeOperation(
+      input,
+      BudgetTransactionType.RELEASE,
+      'RELEASE',
+      transactionClient,
+    );
+  }
+
+  purchaseReservedFundsInTransaction(
+    transactionClient: Prisma.TransactionClient,
+    input: PurchaseBudgetOperationInput,
+  ) {
+    return this.executeOperation(
+      input,
+      BudgetTransactionType.PURCHASE,
+      'PURCHASE',
+      transactionClient,
+    );
+  }
+
   private validateOperation(
     input: InternalBudgetOperationInput,
     transactionType: BudgetTransactionType,
@@ -357,6 +396,7 @@ export class BudgetsService {
     input: InternalBudgetOperationInput,
     transactionType: BudgetTransactionType,
     transition: BudgetTransition,
+    existingTransaction?: Prisma.TransactionClient,
   ) {
     this.validateOperation(input, transactionType);
 
@@ -369,7 +409,7 @@ export class BudgetsService {
         : null;
 
     try {
-      return await this.prisma.$transaction(async (transactionClient) => {
+      const operation = async (transactionClient: Prisma.TransactionClient) => {
         const existing = await transactionClient.budgetTransaction.findUnique({
           where: {
             participantId_idempotencyKey: {
@@ -538,7 +578,11 @@ export class BudgetsService {
           transaction: transactionResponse(ledgerEntry),
           replayed: false,
         };
-      });
+      };
+
+      return existingTransaction
+        ? await operation(existingTransaction)
+        : await this.prisma.$transaction(operation);
     } catch (error: unknown) {
       if (isUniqueConstraintError(error)) {
         throw new ConflictException(

@@ -50,6 +50,7 @@ const navigation: NavigationItem[] = [
   {
     label: 'Auction room',
     icon: Gavel,
+    href: '/auctions',
     mobile: true,
   },
   {
@@ -134,7 +135,7 @@ export function DashboardSidebar({ displayName, email }: DashboardSidebarProps) 
           <Badge tone="accent">Pre-season</Badge>
 
           <p className="mt-3 text-xs leading-5 text-muted">
-            Core game modules unlock in future phases.
+            Secure wallets and live player auctions are online.
           </p>
         </div>
 

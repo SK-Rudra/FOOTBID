@@ -203,6 +203,7 @@ describe('FOOTBID budget wallet (e2e)', () => {
         openingPrice: 10_000_000,
         currentPrice: 10_000_000,
         minimumIncrement: 1_000_000,
+        nominatedByParticipantId: participantId,
       },
     });
 
@@ -217,6 +218,14 @@ describe('FOOTBID budget wallet (e2e)', () => {
       },
     });
 
+    const otherParticipant = await prisma.matchParticipant.create({
+      data: {
+        matchId: otherMatch.id,
+        userId: ownerUserId,
+        side: ParticipantSide.PLAYER_ONE,
+      },
+    });
+
     const otherAuction = await prisma.auction.create({
       data: {
         matchId: otherMatch.id,
@@ -225,6 +234,7 @@ describe('FOOTBID budget wallet (e2e)', () => {
         openingPrice: 10_000_000,
         currentPrice: 10_000_000,
         minimumIncrement: 1_000_000,
+        nominatedByParticipantId: otherParticipant.id,
       },
     });
 

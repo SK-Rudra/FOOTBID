@@ -4,12 +4,17 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 import { configureApplication } from './application.js';
+import { SocketIoAdapter } from './realtime/socket-io.adapter.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 
   configureApplication(app);
+
+  const webUrl = config.getOrThrow<string>('WEB_URL');
+
+  app.useWebSocketAdapter(new SocketIoAdapter(app, webUrl));
   app.enableShutdownHooks();
 
   const port = config.getOrThrow<number>('PORT');

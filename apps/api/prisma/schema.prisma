@@ -91,6 +91,16 @@ enum AuctionStatus {
   CANCELLED
 }
 
+enum AuctionEventType {
+  NOMINATED
+  STARTED
+  BID_PLACED
+  LAST_CALL
+  SOLD
+  UNSOLD
+  CANCELLED
+}
+
 enum SquadRole {
   STARTER
   SUBSTITUTE
@@ -230,11 +240,12 @@ model Player {
   createdAt          DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
 
-  league      League?       @relation(fields: [leagueId], references: [id], onDelete: SetNull)
-  club        Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
-  auctions    Auction[]
-  squadSlots  SquadPlayer[]
-  matchEvents MatchEvent[]
+  league           League?           @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  club             Club?             @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  auctions         Auction[]
+  squadSlots       SquadPlayer[]
+  matchEvents      MatchEvent[]
+  playerOwnerships PlayerOwnership[]
 
   @@unique([sourceProvider, sourcePlayerId])
   @@index([leagueId])
@@ -313,12 +324,13 @@ model Match {
   createdAt            DateTime    @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
 
-  createdBy     User               @relation("MatchHost", fields: [createdById], references: [id], onDelete: Restrict)
-  winner        User?              @relation("MatchWinner", fields: [winnerUserId], references: [id], onDelete: SetNull)
-  participants  MatchParticipant[]
-  squadsPlayers SquadPlayer[]
-  auctions      Auction[]
-  events        MatchEvent[]
+  createdBy        User               @relation("MatchHost", fields: [createdById], references: [id], onDelete: Restrict)
+  winner           User?              @relation("MatchWinner", fields: [winnerUserId], references: [id], onDelete: SetNull)
+  participants     MatchParticipant[]
+  squadsPlayers    SquadPlayer[]
+  auctions         Auction[]
+  events           MatchEvent[]
+  playerOwnerships PlayerOwnership[]
 
   @@index([createdById])
   @@index([winnerUserId])
@@ -349,6 +361,9 @@ model MatchParticipant {
   squad              Squad?
   bids               Bid[]
   wonAuctions        Auction[]           @relation("AuctionWinner")
+  nominatedAuctions  Auction[]           @relation("AuctionNominator")
+  playerOwnerships   PlayerOwnership[]
+  auctionEvents      AuctionEvent[]
   budgetTransactions BudgetTransaction[]
   events             MatchEvent[]
 
@@ -408,32 +423,36 @@ model SquadPlayer {
 }
 
 model Auction {
-  id                  String        @id @default(cuid())
-  matchId             String
-  playerId            String?
-  managerId           String?
-  formationId         String?
-  winnerParticipantId String?
-  type                AuctionType
-  status              AuctionStatus @default(WAITING)
-  openingPrice        Int
-  currentPrice        Int
-  minimumIncrement    Int           @default(100000)
-  version             Int           @default(0)
-  startsAt            DateTime?     @db.Timestamptz(3)
-  endsAt              DateTime?     @db.Timestamptz(3)
-  lastCallAt          DateTime?     @db.Timestamptz(3)
-  soldAt              DateTime?     @db.Timestamptz(3)
-  createdAt           DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
+  id                       String        @id @default(cuid())
+  matchId                  String
+  playerId                 String?
+  managerId                String?
+  formationId              String?
+  winnerParticipantId      String?
+  nominatedByParticipantId String
+  type                     AuctionType
+  status                   AuctionStatus @default(WAITING)
+  openingPrice             Int
+  currentPrice             Int
+  minimumIncrement         Int           @default(100000)
+  version                  Int           @default(0)
+  startsAt                 DateTime?     @db.Timestamptz(3)
+  endsAt                   DateTime?     @db.Timestamptz(3)
+  lastCallAt               DateTime?     @db.Timestamptz(3)
+  soldAt                   DateTime?     @db.Timestamptz(3)
+  createdAt                DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime      @updatedAt @db.Timestamptz(3)
 
-  match              Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player             Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
-  manager            Manager?            @relation(fields: [managerId], references: [id], onDelete: Restrict)
-  formation          Formation?          @relation(fields: [formationId], references: [id], onDelete: Restrict)
-  winnerParticipant  MatchParticipant?   @relation("AuctionWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
-  bids               Bid[]
-  budgetTransactions BudgetTransaction[]
+  match                  Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player                 Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  manager                Manager?            @relation(fields: [managerId], references: [id], onDelete: Restrict)
+  formation              Formation?          @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  winnerParticipant      MatchParticipant?   @relation("AuctionWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+  nominatedByParticipant MatchParticipant    @relation("AuctionNominator", fields: [nominatedByParticipantId], references: [id], onDelete: Cascade)
+  bids                   Bid[]
+  budgetTransactions     BudgetTransaction[]
+  playerOwnership        PlayerOwnership?
+  events                 AuctionEvent[]
 
   @@unique([matchId, playerId])
   @@unique([matchId, managerId])
@@ -441,22 +460,66 @@ model Auction {
   @@index([matchId, status])
   @@index([status, endsAt])
   @@index([winnerParticipantId])
+  @@index([nominatedByParticipantId])
 }
 
 model Bid {
-  id            String   @id @default(cuid())
-  auctionId     String
-  participantId String
-  amount        Int
-  sequence      Int
-  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  id             String   @id @default(cuid())
+  auctionId      String
+  participantId  String
+  amount         Int
+  sequence       Int
+  idempotencyKey String   @db.VarChar(128)
+  auctionVersion Int
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
 
   auction     Auction          @relation(fields: [auctionId], references: [id], onDelete: Cascade)
   participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
 
   @@unique([auctionId, sequence])
+  @@unique([auctionId, participantId, idempotencyKey])
   @@index([auctionId, amount])
   @@index([participantId, createdAt])
+}
+
+model PlayerOwnership {
+  id               String   @id @default(cuid())
+  matchId          String
+  participantId    String
+  playerId         String
+  auctionId        String   @unique
+  acquisitionPrice Int
+  acquiredAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  match       Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  player      Player           @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  auction     Auction          @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playerId])
+  @@index([participantId, acquiredAt])
+  @@index([playerId])
+}
+
+model AuctionEvent {
+  id             String           @id @default(cuid())
+  auctionId      String
+  participantId  String?
+  type           AuctionEventType
+  sequence       Int
+  auctionVersion Int
+  statusAfter    AuctionStatus
+  amount         Int?
+  payload        Json?            @db.JsonB
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+
+  auction     Auction           @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  participant MatchParticipant? @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([auctionId, sequence])
+  @@index([auctionId, createdAt])
+  @@index([participantId, createdAt])
+  @@index([type, createdAt])
 }
 
 model BudgetTransaction {
@@ -476,7 +539,7 @@ model BudgetTransaction {
   createdAt      DateTime              @default(now()) @db.Timestamptz(3)
 
   participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  auction     Auction?         @relation(fields: [auctionId], references: [id], onDelete: SetNull)
+  auction     Auction?         @relation(fields: [auctionId], references: [id], onDelete: Cascade)
 
   @@unique([participantId, idempotencyKey])
   @@unique([participantId, purchaseKey])

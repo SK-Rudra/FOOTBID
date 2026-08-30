@@ -353,6 +353,7 @@ async function main(): Promise<void> {
     const auction = await prisma.auction.create({
       data: {
         type: AuctionType.PLAYER,
+        version: 1,
         openingPrice: 2_000_000,
         currentPrice: 2_500_000,
         minimumIncrement: 100_000,
@@ -362,6 +363,9 @@ async function main(): Promise<void> {
         player: {
           connect: { id: striker.id },
         },
+        nominatedByParticipant: {
+          connect: { id: participantOne.id },
+        },
       },
     });
 
@@ -369,6 +373,8 @@ async function main(): Promise<void> {
       data: {
         amount: 2_500_000,
         sequence: 1,
+        idempotencyKey: 'database-verification-bid-1',
+        auctionVersion: 1,
         auction: {
           connect: { id: auction.id },
         },

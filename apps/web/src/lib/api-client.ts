@@ -22,7 +22,10 @@ interface ApiErrorBody {
   error?: string;
 }
 
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/+$/, '');
+export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(
+  /\/+$/,
+  '',
+);
 
 export class ApiRequestError extends Error {
   constructor(
@@ -41,7 +44,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     headers.set('content-type', 'application/json');
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
     credentials: 'include',

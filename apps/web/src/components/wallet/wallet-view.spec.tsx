@@ -56,6 +56,7 @@ const wallet: Wallet = {
   matchId: 'match-1',
   roomCode: 'P6WALLET1',
   matchStatus: 'AUCTION',
+  isHost: true,
   startingBudget: 150_000_000,
   availableBudget: 115_000_000,
   reservedBudget: 0,

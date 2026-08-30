@@ -14,6 +14,7 @@ export interface Wallet {
   matchId: string;
   roomCode: string;
   matchStatus: WalletMatchStatus;
+  isHost: boolean;
   startingBudget: number;
   availableBudget: number;
   reservedBudget: number;
