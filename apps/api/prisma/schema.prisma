@@ -75,6 +75,13 @@ enum AuctionType {
   FORMATION
 }
 
+enum BudgetTransactionType {
+  RESERVATION
+  RELEASE
+  PURCHASE
+  REFUND
+}
+
 enum AuctionStatus {
   WAITING
   ACTIVE
@@ -336,13 +343,14 @@ model MatchParticipant {
   createdAt       DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
 
-  match        Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
-  selectedClub Club?        @relation(fields: [selectedClubId], references: [id], onDelete: SetNull)
-  squad        Squad?
-  bids         Bid[]
-  wonAuctions  Auction[]    @relation("AuctionWinner")
-  events       MatchEvent[]
+  match              Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  selectedClub       Club?               @relation(fields: [selectedClubId], references: [id], onDelete: SetNull)
+  squad              Squad?
+  bids               Bid[]
+  wonAuctions        Auction[]           @relation("AuctionWinner")
+  budgetTransactions BudgetTransaction[]
+  events             MatchEvent[]
 
   @@unique([matchId, userId])
   @@unique([matchId, side])
@@ -419,12 +427,13 @@ model Auction {
   createdAt           DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
 
-  match             Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  player            Player?           @relation(fields: [playerId], references: [id], onDelete: Restrict)
-  manager           Manager?          @relation(fields: [managerId], references: [id], onDelete: Restrict)
-  formation         Formation?        @relation(fields: [formationId], references: [id], onDelete: Restrict)
-  winnerParticipant MatchParticipant? @relation("AuctionWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
-  bids              Bid[]
+  match              Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player             Player?             @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  manager            Manager?            @relation(fields: [managerId], references: [id], onDelete: Restrict)
+  formation          Formation?          @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  winnerParticipant  MatchParticipant?   @relation("AuctionWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+  bids               Bid[]
+  budgetTransactions BudgetTransaction[]
 
   @@unique([matchId, playerId])
   @@unique([matchId, managerId])
@@ -448,6 +457,32 @@ model Bid {
   @@unique([auctionId, sequence])
   @@index([auctionId, amount])
   @@index([participantId, createdAt])
+}
+
+model BudgetTransaction {
+  id             String                @id @default(cuid())
+  participantId  String
+  auctionId      String?
+  type           BudgetTransactionType
+  itemType       AuctionType?
+  itemId         String?               @db.VarChar(100)
+  amount         Int
+  availableAfter Int
+  reservedAfter  Int
+  spentAfter     Int
+  idempotencyKey String                @db.VarChar(128)
+  purchaseKey    String?               @db.VarChar(160)
+  description    String?               @db.VarChar(255)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  auction     Auction?         @relation(fields: [auctionId], references: [id], onDelete: SetNull)
+
+  @@unique([participantId, idempotencyKey])
+  @@unique([participantId, purchaseKey])
+  @@index([participantId, createdAt])
+  @@index([auctionId])
+  @@index([type, createdAt])
 }
 
 model MatchEvent {

@@ -165,7 +165,7 @@ export function DashboardView() {
               </h1>
 
               <p className="mt-2 text-sm leading-6 text-muted">
-                Your account is ready. Game systems will unlock as the roadmap advances.
+                Your secure account, player database, and €150M wallet foundation are ready.
               </p>
             </div>
 
@@ -182,9 +182,9 @@ export function DashboardView() {
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
-                label="Planned budget"
+                label="Match wallet"
                 value="€150M"
-                detail="Budget engine unlocks in Phase 6."
+                detail="Protected by server-side budget validation."
                 icon={Coins}
                 tone="accent"
               />
@@ -234,7 +234,7 @@ export function DashboardView() {
 
                 <span className="inline-flex items-center gap-2 text-xs font-bold text-muted">
                   <Sparkles aria-hidden="true" className="size-4 text-info" />
-                  Player database arrives in Phase 5
+                  Search the live player database
                 </span>
               </div>
 

@@ -8,6 +8,7 @@ import {
   Settings,
   Trophy,
   UsersRound,
+  WalletCards,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -20,6 +21,7 @@ interface NavigationItem {
   label: string;
   icon: LucideIcon;
   href?: string;
+  mobile?: boolean;
 }
 
 const navigation: NavigationItem[] = [
@@ -27,11 +29,19 @@ const navigation: NavigationItem[] = [
     label: 'Overview',
     icon: LayoutDashboard,
     href: '/dashboard',
+    mobile: true,
   },
   {
     label: 'Players',
     icon: Search,
     href: '/players',
+    mobile: true,
+  },
+  {
+    label: 'Wallet',
+    icon: WalletCards,
+    href: '/wallet',
+    mobile: true,
   },
   {
     label: 'Squad',
@@ -40,6 +50,7 @@ const navigation: NavigationItem[] = [
   {
     label: 'Auction room',
     icon: Gavel,
+    mobile: true,
   },
   {
     label: 'Leaderboard',
@@ -144,9 +155,11 @@ export function DashboardSidebar({ displayName, email }: DashboardSidebarProps) 
         aria-label="Mobile dashboard navigation"
         className="fixed right-3 bottom-3 left-3 z-40 flex items-center justify-around rounded-2xl border border-line-strong bg-surface/92 p-1.5 shadow-[0_20px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl lg:hidden"
       >
-        {navigation.slice(0, 4).map((item) => (
-          <SidebarItem key={item.label} item={item} active={item.href === pathname} compact />
-        ))}
+        {navigation
+          .filter((item) => item.mobile)
+          .map((item) => (
+            <SidebarItem key={item.label} item={item} active={item.href === pathname} compact />
+          ))}
       </nav>
     </>
   );

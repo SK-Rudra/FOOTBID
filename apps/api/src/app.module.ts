@@ -9,6 +9,7 @@ import { RolesGuard } from './auth/guards/roles.guard.js';
 import { validateEnvironment } from './config/environment.js';
 import { PlayersModule } from './players/players.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { BudgetsModule } from './budgets/budgets.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     PrismaModule,
     AuthModule,
     PlayersModule,
+    BudgetsModule,
   ],
   controllers: [AppController],
   providers: [
