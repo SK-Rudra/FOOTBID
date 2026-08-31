@@ -12,6 +12,7 @@ import { validateEnvironment } from './config/environment.js';
 import { PlayersModule } from './players/players.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { MatchesModule } from './matches/matches.module.js';
+import { ManagersModule } from './managers/managers.module.js';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { MatchesModule } from './matches/matches.module.js';
     PrismaModule,
     AuthModule,
     MatchesModule,
+    ManagersModule,
     PlayersModule,
     BudgetsModule,
     AuctionsModule,
