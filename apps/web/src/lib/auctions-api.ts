@@ -56,6 +56,28 @@ export interface AuctionPlayer {
   club: AuctionPlayerClub | null;
 }
 
+export interface AuctionManager {
+  id: string;
+  fullName: string;
+  nationalityCode: string;
+  tacticalStyle: string;
+  preferredFormations: string[];
+  passingPhilosophy: string;
+  defensivePhilosophy: string;
+  pressingStyle: string;
+  overall: number;
+  attacking: number;
+  defending: number;
+  adaptability: number;
+  manManagement: number;
+  attackingBonus: number;
+  midfieldBonus: number;
+  defendingBonus: number;
+  chemistryBonus: number;
+  marketValue: number;
+  tier: 'FREE' | 'PREMIUM';
+  club: AuctionPlayerClub | null;
+}
 export interface AuctionHighestBid {
   id: string;
   participantId: string;
@@ -72,6 +94,7 @@ export interface Auction {
   roomCode: string;
   matchStatus: WalletMatchStatus;
   playerId: string | null;
+  managerId: string | null;
   type: WalletItemType;
   status: AuctionStatus;
   openingPrice: number;
@@ -87,6 +110,7 @@ export interface Auction {
   updatedAt: string;
   serverTime: string;
   player: AuctionPlayer | null;
+  manager: AuctionManager | null;
   nominatedBy: AuctionParticipant;
   winner: AuctionParticipant | null;
   highestBid: AuctionHighestBid | null;
@@ -149,6 +173,11 @@ export interface CreatePlayerAuctionInput {
   minimumIncrement: number;
 }
 
+export interface CreateManagerAuctionInput {
+  managerId: string;
+  openingPrice: number;
+  minimumIncrement: number;
+}
 export interface StartAuctionInput {
   durationSeconds?: number;
 }
@@ -244,6 +273,20 @@ export function createPlayerAuction(
   );
 }
 
+export function createManagerAuction(
+  matchId: string,
+  input: CreateManagerAuctionInput,
+  init: RequestInit = {},
+): Promise<AuctionMutationResult> {
+  return apiRequest<AuctionMutationResult>(
+    `/api/v1/matches/${encodedIdentifier(matchId)}/manager-auctions`,
+    {
+      ...init,
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
 export function startAuction(
   auctionId: string,
   input: StartAuctionInput = {},

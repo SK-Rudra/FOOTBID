@@ -25,6 +25,7 @@ import type {
   AuctionHistoryQueryDto,
   AuctionListQueryDto,
 } from './dto/auction-query.dto.js';
+import type { CreateManagerAuctionDto } from './dto/create-manager-auction.dto.js';
 import type { CreatePlayerAuctionDto } from './dto/create-auction.dto.js';
 import type { PlaceBidDto } from './dto/place-bid.dto.js';
 import type { StartAuctionDto } from './dto/start-auction.dto.js';
@@ -44,6 +45,7 @@ const auctionDetailSelect = {
   id: true,
   matchId: true,
   playerId: true,
+  managerId: true,
   type: true,
   status: true,
   openingPrice: true,
@@ -80,6 +82,36 @@ const auctionDetailSelect = {
       physical: true,
       goalkeeping: true,
       marketValue: true,
+      club: {
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+        },
+      },
+    },
+  },
+  manager: {
+    select: {
+      id: true,
+      fullName: true,
+      nationalityCode: true,
+      tacticalStyle: true,
+      preferredFormations: true,
+      passingPhilosophy: true,
+      defensivePhilosophy: true,
+      pressingStyle: true,
+      overall: true,
+      attacking: true,
+      defending: true,
+      adaptability: true,
+      manManagement: true,
+      attackingBonus: true,
+      midfieldBonus: true,
+      defendingBonus: true,
+      chemistryBonus: true,
+      marketValue: true,
+      tier: true,
       club: {
         select: {
           id: true,
@@ -184,6 +216,7 @@ function auctionResponse(auction: AuctionDetailRecord) {
     roomCode: auction.match.roomCode,
     matchStatus: auction.match.status,
     playerId: auction.playerId,
+    managerId: auction.managerId,
     type: auction.type,
     status: auction.status,
     openingPrice: auction.openingPrice,
@@ -203,6 +236,7 @@ function auctionResponse(auction: AuctionDetailRecord) {
     updatedAt: auction.updatedAt,
     serverTime: new Date(),
     player: auction.player,
+    manager: auction.manager,
     nominatedBy: participantResponse(auction.nominatedByParticipant),
     winner: auction.winnerParticipant
       ? participantResponse(auction.winnerParticipant)
@@ -413,6 +447,162 @@ export class AuctionsService {
     }
   }
 
+  async createManagerAuction(
+    matchId: string,
+    userId: string,
+    dto: CreateManagerAuctionDto,
+  ): Promise<AuctionMutationResult> {
+    try {
+      return await this.withSerializableRetry(async (transactionClient) => {
+        const match = await transactionClient.match.findUnique({
+          where: {
+            id: matchId,
+          },
+          select: {
+            id: true,
+            createdById: true,
+            status: true,
+          },
+        });
+
+        if (!match) {
+          throw new NotFoundException('Match not found.');
+        }
+
+        if (match.createdById !== userId) {
+          throw new ForbiddenException(
+            'Only the match host can nominate a manager.',
+          );
+        }
+
+        if (
+          match.status !== MatchStatus.WAITING &&
+          match.status !== MatchStatus.AUCTION
+        ) {
+          throw new ConflictException(
+            'This match is not accepting manager nominations.',
+          );
+        }
+
+        const participant = await this.requireParticipant(
+          transactionClient,
+          matchId,
+          userId,
+        );
+
+        const manager = await transactionClient.manager.findFirst({
+          where: {
+            id: dto.managerId,
+            isActive: true,
+            isNeutral: false,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (!manager) {
+          throw new NotFoundException('Active auctionable manager not found.');
+        }
+
+        const existingOwnership =
+          await transactionClient.managerOwnership.findUnique({
+            where: {
+              matchId_managerId: {
+                matchId,
+                managerId: manager.id,
+              },
+            },
+            select: {
+              id: true,
+            },
+          });
+
+        if (existingOwnership) {
+          throw new ConflictException(
+            'This manager is already owned in the match.',
+          );
+        }
+
+        const openAuction = await transactionClient.auction.findFirst({
+          where: {
+            matchId,
+            status: {
+              in: [
+                AuctionStatus.WAITING,
+                AuctionStatus.ACTIVE,
+                AuctionStatus.LAST_CALL,
+              ],
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (openAuction) {
+          throw new ConflictException(
+            'The match already has an unfinished auction.',
+          );
+        }
+
+        const auction = await transactionClient.auction.create({
+          data: {
+            matchId,
+            managerId: manager.id,
+            nominatedByParticipantId: participant.id,
+            type: AuctionType.MANAGER,
+            status: AuctionStatus.WAITING,
+            openingPrice: dto.openingPrice,
+            currentPrice: dto.openingPrice,
+            minimumIncrement: dto.minimumIncrement,
+            version: 0,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        await transactionClient.auctionEvent.create({
+          data: {
+            auctionId: auction.id,
+            participantId: participant.id,
+            type: AuctionEventType.NOMINATED,
+            sequence: 1,
+            auctionVersion: 0,
+            statusAfter: AuctionStatus.WAITING,
+            amount: dto.openingPrice,
+            payload: {
+              managerId: manager.id,
+              minimumIncrement: dto.minimumIncrement,
+            },
+          },
+        });
+
+        const createdAuction =
+          await transactionClient.auction.findUniqueOrThrow({
+            where: {
+              id: auction.id,
+            },
+            select: auctionDetailSelect,
+          });
+
+        return {
+          auction: auctionResponse(createdAuction),
+          eventType: AuctionEventType.NOMINATED,
+          replayed: false,
+        };
+      });
+    } catch (error: unknown) {
+      if (isPrismaErrorCode(error, 'P2002')) {
+        throw new ConflictException(
+          'This manager has already been nominated in the match.',
+        );
+      }
+
+      throw error;
+    }
+  }
   async startAuction(
     auctionId: string,
     userId: string,
@@ -454,9 +644,12 @@ export class AuctionsService {
         userId,
       );
 
-      if (auction.type !== AuctionType.PLAYER) {
+      if (
+        auction.type !== AuctionType.PLAYER &&
+        auction.type !== AuctionType.MANAGER
+      ) {
         throw new BadRequestException(
-          'Only player auctions are supported in this phase.',
+          'This auction type is not supported in the current phase.',
         );
       }
 
@@ -578,6 +771,7 @@ export class AuctionsService {
             id: true,
             matchId: true,
             playerId: true,
+            managerId: true,
             type: true,
             status: true,
             openingPrice: true,
@@ -638,9 +832,14 @@ export class AuctionsService {
           };
         }
 
-        if (auction.type !== AuctionType.PLAYER || !auction.playerId) {
+        const hasValidPlayer =
+          auction.type === AuctionType.PLAYER && Boolean(auction.playerId);
+        const hasValidManager =
+          auction.type === AuctionType.MANAGER && Boolean(auction.managerId);
+
+        if (!hasValidPlayer && !hasValidManager) {
           throw new BadRequestException(
-            'Only player auctions are supported in this phase.',
+            'The auction does not contain a supported asset.',
           );
         }
 
@@ -661,6 +860,24 @@ export class AuctionsService {
 
         if (!auction.endsAt || auction.endsAt.getTime() <= now.getTime()) {
           throw new ConflictException('The auction bidding period has ended.');
+        }
+
+        if (auction.type === AuctionType.MANAGER) {
+          const existingManagerOwnership =
+            await transactionClient.managerOwnership.findUnique({
+              where: {
+                participantId: participant.id,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+          if (existingManagerOwnership) {
+            throw new ConflictException(
+              'You already own a manager in this match.',
+            );
+          }
         }
 
         const highestBid = await transactionClient.bid.findFirst({
@@ -1141,6 +1358,7 @@ export class AuctionsService {
             id: true,
             matchId: true,
             playerId: true,
+            managerId: true,
             type: true,
             status: true,
             version: true,
@@ -1235,6 +1453,7 @@ export class AuctionsService {
       id: string;
       matchId: string;
       playerId: string | null;
+      managerId: string | null;
       type: AuctionType;
       status: AuctionStatus;
       version: number;
@@ -1304,36 +1523,97 @@ export class AuctionsService {
       };
     }
 
-    if (auction.type !== AuctionType.PLAYER || !auction.playerId) {
+    let soldAssetPayload: { playerId: string } | { managerId: string };
+
+    if (auction.type === AuctionType.PLAYER) {
+      if (!auction.playerId) {
+        throw new ConflictException(
+          'The auction does not contain a valid player.',
+        );
+      }
+
+      await this.budgetsService.purchaseReservedFundsInTransaction(
+        transactionClient,
+        {
+          participantId: highestBid.participantId,
+          auctionId: auction.id,
+          amount: highestBid.amount,
+          itemType: AuctionType.PLAYER,
+          itemId: auction.playerId,
+          idempotencyKey: `auction:${auction.id}:purchase`,
+          description: 'Player purchased through the auction.',
+        },
+      );
+
+      await transactionClient.playerOwnership.create({
+        data: {
+          matchId: auction.matchId,
+          participantId: highestBid.participantId,
+          playerId: auction.playerId,
+          auctionId: auction.id,
+          acquisitionPrice: highestBid.amount,
+          acquiredAt: now,
+        },
+      });
+
+      soldAssetPayload = {
+        playerId: auction.playerId,
+      };
+    } else if (auction.type === AuctionType.MANAGER) {
+      if (!auction.managerId) {
+        throw new ConflictException(
+          'The auction does not contain a valid manager.',
+        );
+      }
+
+      const existingManagerOwnership =
+        await transactionClient.managerOwnership.findUnique({
+          where: {
+            participantId: highestBid.participantId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (existingManagerOwnership) {
+        throw new ConflictException(
+          'The winning participant already owns a manager.',
+        );
+      }
+
+      await this.budgetsService.purchaseReservedFundsInTransaction(
+        transactionClient,
+        {
+          participantId: highestBid.participantId,
+          auctionId: auction.id,
+          amount: highestBid.amount,
+          itemType: AuctionType.MANAGER,
+          itemId: auction.managerId,
+          idempotencyKey: `auction:${auction.id}:purchase`,
+          description: 'Manager purchased through the auction.',
+        },
+      );
+
+      await transactionClient.managerOwnership.create({
+        data: {
+          matchId: auction.matchId,
+          participantId: highestBid.participantId,
+          managerId: auction.managerId,
+          auctionId: auction.id,
+          acquisitionPrice: highestBid.amount,
+          acquiredAt: now,
+        },
+      });
+
+      soldAssetPayload = {
+        managerId: auction.managerId,
+      };
+    } else {
       throw new ConflictException(
-        'The auction does not contain a valid player.',
+        'The auction does not contain a supported asset.',
       );
     }
-
-    await this.budgetsService.purchaseReservedFundsInTransaction(
-      transactionClient,
-      {
-        participantId: highestBid.participantId,
-        auctionId: auction.id,
-        amount: highestBid.amount,
-        itemType: AuctionType.PLAYER,
-        itemId: auction.playerId,
-        idempotencyKey: `auction:${auction.id}:purchase`,
-        description: 'Player purchased through the auction.',
-      },
-    );
-
-    await transactionClient.playerOwnership.create({
-      data: {
-        matchId: auction.matchId,
-        participantId: highestBid.participantId,
-        playerId: auction.playerId,
-        auctionId: auction.id,
-        acquisitionPrice: highestBid.amount,
-        acquiredAt: now,
-      },
-    });
-
     const updateResult = await transactionClient.auction.updateMany({
       where: {
         id: auction.id,
@@ -1364,9 +1644,7 @@ export class AuctionsService {
         auctionVersion: nextVersion,
         statusAfter: AuctionStatus.SOLD,
         amount: highestBid.amount,
-        payload: {
-          playerId: auction.playerId,
-        },
+        payload: soldAssetPayload,
       },
     });
 

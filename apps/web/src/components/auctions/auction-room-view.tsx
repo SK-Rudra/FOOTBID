@@ -189,6 +189,150 @@ function PlayerSummary({ auction }: { auction: Auction }) {
   );
 }
 
+function ManagerSummary({ auction }: { auction: Auction }) {
+  const manager = auction.manager;
+
+  if (!manager) {
+    return (
+      <EmptyState
+        title="Manager data unavailable"
+        description="This auction does not contain a manager record."
+      />
+    );
+  }
+
+  const stats = [
+    ['ATK', manager.attacking],
+    ['DEF', manager.defending],
+    ['ADP', manager.adaptability],
+    ['MAN', manager.manManagement],
+  ];
+
+  const bonuses = [
+    ['Attack', manager.attackingBonus],
+    ['Midfield', manager.midfieldBonus],
+    ['Defence', manager.defendingBonus],
+    ['Chemistry', manager.chemistryBonus],
+  ];
+
+  return (
+    <Card tone="accent">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={statusTones[auction.status]}>{statusLabel(auction.status)}</Badge>
+
+            <Badge tone="info">Manager</Badge>
+            <Badge tone="accent">{manager.tacticalStyle}</Badge>
+          </div>
+
+          {auction.endsAt && (auction.status === 'ACTIVE' || auction.status === 'LAST_CALL') && (
+            <CountdownTimer targetTime={auction.endsAt} label="Auction time remaining" />
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+          <div className="grid size-28 shrink-0 place-items-center rounded-3xl border border-info/30 bg-info/10">
+            <div className="text-center">
+              <p className="font-mono text-4xl font-black text-info">{manager.overall}</p>
+
+              <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.14em] text-muted">
+                Overall
+              </p>
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h2 className="text-3xl font-black tracking-[-0.05em] text-foreground">
+              {manager.fullName}
+            </h2>
+
+            <p className="mt-2 text-sm text-muted">
+              {manager.club?.name ?? 'Independent'} / {manager.nationalityCode} / Nominated by{' '}
+              {auction.nominatedBy.displayName}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {manager.preferredFormations.map((formation) => (
+                <Badge key={formation}>{formation}</Badge>
+              ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {stats.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-line bg-black/20 px-2 py-3 text-center"
+                >
+                  <p className="font-mono text-lg font-black text-foreground">{value}</p>
+
+                  <p className="mt-1 text-[0.625rem] font-extrabold tracking-[0.12em] text-muted">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 border-t border-line pt-5 sm:grid-cols-3">
+          <div className="rounded-xl border border-line bg-black/20 p-3">
+            <p className="text-[0.625rem] font-extrabold uppercase tracking-[0.12em] text-muted">
+              Passing
+            </p>
+            <p className="mt-2 text-sm font-black text-foreground">{manager.passingPhilosophy}</p>
+          </div>
+
+          <div className="rounded-xl border border-line bg-black/20 p-3">
+            <p className="text-[0.625rem] font-extrabold uppercase tracking-[0.12em] text-muted">
+              Defence
+            </p>
+            <p className="mt-2 text-sm font-black text-foreground">{manager.defensivePhilosophy}</p>
+          </div>
+
+          <div className="rounded-xl border border-line bg-black/20 p-3">
+            <p className="text-[0.625rem] font-extrabold uppercase tracking-[0.12em] text-muted">
+              Pressing
+            </p>
+            <p className="mt-2 text-sm font-black text-foreground">{manager.pressingStyle}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {bonuses.map(([label, value]) => (
+            <div
+              key={label}
+              className="flex items-center justify-between rounded-xl border border-line bg-black/20 px-3 py-2"
+            >
+              <span className="text-xs font-bold text-muted">{label}</span>
+
+              <span className="font-mono text-sm font-black text-accent">+{value}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function AuctionAssetSummary({ auction }: { auction: Auction }) {
+  if (auction.type === 'MANAGER') {
+    return <ManagerSummary auction={auction} />;
+  }
+
+  if (auction.type === 'PLAYER') {
+    return <PlayerSummary auction={auction} />;
+  }
+
+  return (
+    <EmptyState
+      title="Unsupported auction asset"
+      description="This auction type is not available in the current phase."
+    />
+  );
+}
 function AuctionHistory({ history }: { history: AuctionHistoryResponse | null }) {
   return (
     <Card tone="glass">
@@ -718,8 +862,8 @@ export function AuctionRoomView() {
               title="Waiting for a nomination"
               description={
                 wallet.isHost
-                  ? 'Use the nomination form above to select the first player.'
-                  : 'There are no auctions in this match yet. Waiting for the match host to nominate a player.'
+                  ? 'Use the nomination form above to select the first player or manager.'
+                  : 'There are no auctions in this match yet. Waiting for the match host to nominate a player or manager.'
               }
               icon={UsersRound}
               className="mt-7"
@@ -765,7 +909,7 @@ export function AuctionRoomView() {
 
               <div className="mt-7 grid gap-7 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
                 <div className="space-y-7">
-                  <PlayerSummary auction={auction} />
+                  <AuctionAssetSummary auction={auction} />
 
                   {auctions.length > 1 && (
                     <Card tone="glass">
@@ -790,7 +934,9 @@ export function AuctionRoomView() {
                           >
                             <div className="flex items-center justify-between gap-3">
                               <p className="truncate text-sm font-extrabold text-foreground">
-                                {item.player?.shortName ?? 'Player auction'}
+                                {item.type === 'MANAGER'
+                                  ? (item.manager?.fullName ?? 'Manager auction')
+                                  : (item.player?.shortName ?? 'Player auction')}
                               </p>
 
                               <Badge tone={statusTones[item.status]}>

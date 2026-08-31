@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BrainCircuit,
   Gavel,
   LayoutDashboard,
   LockKeyhole,
@@ -35,6 +36,12 @@ const navigation: NavigationItem[] = [
     label: 'Players',
     icon: Search,
     href: '/players',
+    mobile: true,
+  },
+  {
+    label: 'Managers',
+    icon: BrainCircuit,
+    href: '/managers',
     mobile: true,
   },
   {
@@ -135,7 +142,7 @@ export function DashboardSidebar({ displayName, email }: DashboardSidebarProps) 
           <Badge tone="accent">Pre-season</Badge>
 
           <p className="mt-3 text-xs leading-5 text-muted">
-            Secure wallets and live player auctions are online.
+            Secure wallets and live player and manager auctions are online.
           </p>
         </div>
 

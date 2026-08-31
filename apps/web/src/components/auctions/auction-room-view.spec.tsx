@@ -111,6 +111,7 @@ const auction: Auction = {
   roomCode: wallet.roomCode,
   matchStatus: 'AUCTION',
   playerId: 'player-1',
+  managerId: null,
   type: 'PLAYER',
   status: 'ACTIVE',
   openingPrice: 10_000_000,
@@ -147,6 +148,7 @@ const auction: Auction = {
       shortName: 'FBA',
     },
   },
+  manager: null,
   nominatedBy: {
     id: 'participant-host',
     userId: 'host-user',
