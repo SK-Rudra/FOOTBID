@@ -184,7 +184,7 @@ export function PlayerDetailView({ playerId }: PlayerDetailViewProps) {
               <CardTitle>Player attributes</CardTitle>
 
               <p className="text-sm leading-6 text-muted">
-                The seven core ratings used throughout FOOTBID.
+                The seven core ratings used throughout KickoffBid.
               </p>
             </CardHeader>
 

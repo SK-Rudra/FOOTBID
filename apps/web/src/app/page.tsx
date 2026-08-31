@@ -140,7 +140,7 @@ export default async function Home() {
               </h1>
 
               <p className="mt-7 max-w-xl text-base leading-7 text-muted sm:text-lg sm:leading-8">
-                FOOTBID is a competitive 1v1 football auction and tactical battle game. Every
+                KickoffBid is a competitive 1v1 football auction and tactical battle game. Every
                 decision costs. Every squad tells a story.
               </p>
 
@@ -225,7 +225,7 @@ export default async function Home() {
             </h2>
 
             <p className="mt-5 text-base leading-7 text-muted">
-              Auction discipline and tactical judgment carry equal weight. FOOTBID is designed to
+              Auction discipline and tactical judgment carry equal weight. KickoffBid is designed to
               reward planning instead of luck.
             </p>
           </div>
@@ -364,7 +364,7 @@ export default async function Home() {
               </CardTitle>
 
               <CardDescription className="mt-3 max-w-xl text-base">
-                Create your FOOTBID identity now. Game modules will unlock progressively as the
+                Create your KickoffBid identity now. Game modules will unlock progressively as the
                 roadmap advances.
               </CardDescription>
             </CardHeader>
@@ -421,7 +421,7 @@ export default async function Home() {
               {connected ? 'API operational' : 'API currently offline'}
             </span>
 
-            <span>© {new Date().getFullYear()} FOOTBID</span>
+            <span>© {new Date().getFullYear()} KickoffBid</span>
           </div>
         </div>
       </footer>

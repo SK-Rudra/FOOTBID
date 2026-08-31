@@ -3,7 +3,7 @@ import { DashboardView } from '@/components/dashboard/dashboard-view';
 
 export const metadata: Metadata = {
   title: 'Manager dashboard',
-  description: 'Manage your secure FOOTBID identity and view game-system previews.',
+  description: 'Manage your secure KickoffBid identity and view game-system previews.',
 };
 
 export default function DashboardPage() {

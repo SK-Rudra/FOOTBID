@@ -4,8 +4,8 @@ import { SiteHeader } from '@/components/layout/site-header';
 import { Badge } from '@/components/ui/badge';
 
 export const metadata: Metadata = {
-  title: 'Player Database | FOOTBID',
-  description: 'Search and compare the active fictional player database used by FOOTBID.',
+  title: 'Player Database | KickoffBid',
+  description: 'Search and compare the active fictional player database used by KickoffBid.',
 };
 
 export default function PlayersPage() {

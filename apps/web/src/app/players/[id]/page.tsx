@@ -3,8 +3,8 @@ import { SiteHeader } from '@/components/layout/site-header';
 import { PlayerDetailView } from '@/components/players/player-detail-view';
 
 export const metadata: Metadata = {
-  title: 'Player Profile | FOOTBID',
-  description: 'Review a FOOTBID player profile and its complete core attributes.',
+  title: 'Player Profile | KickoffBid',
+  description: 'Review a KickoffBid player profile and its complete core attributes.',
 };
 
 interface PlayerPageProps {

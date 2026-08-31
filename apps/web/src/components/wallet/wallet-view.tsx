@@ -276,7 +276,7 @@ export function WalletView() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-                Your €150M budget is validated and recorded by the FOOTBID server. The browser
+                Your €150M budget is validated and recorded by the KickoffBid server. The browser
                 cannot directly change balances or create transactions.
               </p>
             </div>

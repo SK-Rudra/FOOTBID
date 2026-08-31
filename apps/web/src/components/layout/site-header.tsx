@@ -25,7 +25,7 @@ export function SiteHeader() {
       >
         <Link
           href="/"
-          aria-label="FOOTBID home"
+          aria-label="KickoffBid home"
           className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <FootbidLogo />
@@ -66,7 +66,7 @@ export function SiteHeader() {
 
         <div className="sm:hidden">
           <Modal
-            title="Navigate FOOTBID"
+            title="Navigate KickoffBid"
             description="Explore the platform or access your account."
             open={mobileMenuOpen}
             onOpenChange={setMobileMenuOpen}

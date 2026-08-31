@@ -5,14 +5,14 @@ import { RegisterForm } from '@/components/auth/register-form';
 
 export const metadata: Metadata = {
   title: 'Create account',
-  description: 'Create your secure FOOTBID manager identity.',
+  description: 'Create your secure KickoffBid manager identity.',
 };
 
 export default function RegisterPage() {
   return (
     <AuthShell
       eyebrow="New manager"
-      title="Create your FOOTBID identity."
+      title="Create your KickoffBid identity."
       description="Set up the account that will carry your squads, match history, and ranking."
       footer={
         <p>

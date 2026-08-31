@@ -15,11 +15,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: 'FOOTBID — Bid. Build. Battle.',
-    template: '%s | FOOTBID',
+    default: 'KickoffBid — Bid. Build. Battle.',
+    template: '%s | KickoffBid',
   },
   description: 'A competitive 1v1 football auction and tactical battle game.',
-  applicationName: 'FOOTBID',
+  applicationName: 'KickoffBid',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

@@ -91,7 +91,7 @@ export function RegisterForm() {
       });
 
       showToast({
-        title: `Welcome to FOOTBID, ${result.user.displayName}`,
+        title: `Welcome to KickoffBid, ${result.user.displayName}`,
         description: 'Your manager identity has been created.',
         tone: 'success',
       });
@@ -102,7 +102,7 @@ export function RegisterForm() {
       const message =
         error instanceof ApiRequestError
           ? error.message
-          : 'Unable to connect to FOOTBID. Check that the API is running.';
+          : 'Unable to connect to KickoffBid. Check that the API is running.';
 
       setRequestError(message);
     } finally {

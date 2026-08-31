@@ -125,7 +125,7 @@ export function DashboardSidebar({ displayName, email }: DashboardSidebarProps) 
       <aside className="sticky top-0 hidden h-dvh w-70 shrink-0 flex-col border-r border-line bg-[#070b12]/95 px-4 py-5 backdrop-blur-xl lg:flex">
         <Link
           href="/"
-          aria-label="FOOTBID home"
+          aria-label="KickoffBid home"
           className="rounded-xl px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <FootbidLogo />

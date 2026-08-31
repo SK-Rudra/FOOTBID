@@ -468,14 +468,14 @@ async function main(): Promise<void> {
       slug: 'footbid-premier-league',
     },
     update: {
-      name: 'FOOTBID Premier League',
+      name: 'KickoffBid Premier League',
       countryCode: 'BD',
       dataVersion: DATA_VERSION,
       sourceProvider: SOURCE_PROVIDER,
       sourceLeagueId: 'league-001',
     },
     create: {
-      name: 'FOOTBID Premier League',
+      name: 'KickoffBid Premier League',
       slug: 'footbid-premier-league',
       countryCode: 'BD',
       dataVersion: DATA_VERSION,
@@ -575,7 +575,7 @@ async function main(): Promise<void> {
       },
     },
     update: {
-      fullName: 'FOOTBID Neutral Coach',
+      fullName: 'KickoffBid Neutral Coach',
       nationalityCode: 'BD',
       tacticalStyle: 'Balanced',
       overall: 65,
@@ -590,7 +590,7 @@ async function main(): Promise<void> {
       club: { disconnect: true },
     },
     create: {
-      fullName: 'FOOTBID Neutral Coach',
+      fullName: 'KickoffBid Neutral Coach',
       nationalityCode: 'BD',
       tacticalStyle: 'Balanced',
       overall: 65,
@@ -772,7 +772,7 @@ async function main(): Promise<void> {
       }),
     ]);
 
-  console.log('FOOTBID fictional seed completed.');
+  console.log('KickoffBid fictional seed completed.');
   console.log({
     leagues: leagueCount,
     clubs: clubCount,
@@ -784,7 +784,7 @@ async function main(): Promise<void> {
 
 main()
   .catch((error: unknown) => {
-    console.error('FOOTBID seed failed:', error);
+    console.error('KickoffBid seed failed:', error);
     process.exitCode = 1;
   })
   .finally(async () => {

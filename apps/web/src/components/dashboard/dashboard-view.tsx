@@ -76,7 +76,7 @@ export function DashboardView() {
           return;
         }
 
-        setRequestError('The dashboard could not connect to FOOTBID.');
+        setRequestError('The dashboard could not connect to KickoffBid.');
       } finally {
         if (active) {
           setLoading(false);
@@ -107,7 +107,7 @@ export function DashboardView() {
 
       showToast({
         title: 'Signed out',
-        description: 'Your FOOTBID session has been closed.',
+        description: 'Your KickoffBid session has been closed.',
         tone: 'info',
       });
 

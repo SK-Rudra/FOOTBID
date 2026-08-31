@@ -27,7 +27,7 @@ export function FootbidLogo({ compact = false, className, ...props }: FootbidLog
 
       {!compact && (
         <span className="text-xl font-black tracking-[-0.04em] text-foreground">
-          FOOT<span className="text-accent">BID</span>
+          Kickoff<span className="text-accent">Bid</span>
         </span>
       )}
     </div>

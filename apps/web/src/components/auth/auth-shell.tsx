@@ -27,7 +27,7 @@ const principles = [
   {
     icon: Swords,
     title: 'Prepare to compete',
-    description: 'Your identity carries into every future FOOTBID match.',
+    description: 'Your identity carries into every future KickoffBid match.',
   },
 ];
 
@@ -40,7 +40,7 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
         <section className="hidden flex-col justify-between border-r border-line p-10 lg:flex xl:p-14">
           <Link
             href="/"
-            aria-label="Return to FOOTBID home"
+            aria-label="Return to KickoffBid home"
             className="w-fit rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <FootbidLogo />
@@ -73,14 +73,14 @@ export function AuthShell({ eyebrow, title, description, children, footer }: Aut
             </div>
           </div>
 
-          <p className="text-xs text-muted">FOOTBID · Original competitive football strategy</p>
+          <p className="text-xs text-muted">KickoffBid · Original competitive football strategy</p>
         </section>
 
         <section className="flex min-h-dvh items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
           <div className="w-full max-w-lg animate-enter">
             <Link
               href="/"
-              aria-label="Return to FOOTBID home"
+              aria-label="Return to KickoffBid home"
               className="mb-8 inline-flex rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent lg:hidden"
             >
               <FootbidLogo />

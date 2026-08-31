@@ -63,7 +63,7 @@ export function LoginForm() {
 
       showToast({
         title: `Welcome back, ${result.user.displayName}`,
-        description: 'Your secure FOOTBID session is active.',
+        description: 'Your secure KickoffBid session is active.',
         tone: 'success',
       });
 
@@ -73,7 +73,7 @@ export function LoginForm() {
       const message =
         error instanceof ApiRequestError
           ? error.message
-          : 'Unable to connect to FOOTBID. Check that the API is running.';
+          : 'Unable to connect to KickoffBid. Check that the API is running.';
 
       setRequestError(message);
     } finally {

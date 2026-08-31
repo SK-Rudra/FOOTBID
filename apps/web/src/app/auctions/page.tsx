@@ -3,7 +3,8 @@ import { AuctionRoomView } from '@/components/auctions/auction-room-view';
 
 export const metadata: Metadata = {
   title: 'Live auction room',
-  description: 'Join secure real-time FOOTBID player auctions and place server-authoritative bids.',
+  description:
+    'Join secure real-time KickoffBid player auctions and place server-authoritative bids.',
 };
 
 export default function AuctionsPage() {

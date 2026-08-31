@@ -5,7 +5,7 @@ import { LoginForm } from '@/components/auth/login-form';
 
 export const metadata: Metadata = {
   title: 'Sign in',
-  description: 'Sign in to your secure FOOTBID manager account.',
+  description: 'Sign in to your secure KickoffBid manager account.',
 };
 
 export default function LoginPage() {
@@ -16,7 +16,7 @@ export default function LoginPage() {
       description="Sign in with your email address or username to continue."
       footer={
         <p>
-          New to FOOTBID?{' '}
+          New to KickoffBid?{' '}
           <Link href="/register" className="font-extrabold text-accent hover:text-accent-strong">
             Create an account
           </Link>

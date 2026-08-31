@@ -233,7 +233,7 @@ function AuctionHistory({ history }: { history: AuctionHistoryResponse | null })
                   </div>
 
                   <p className="mt-2 text-sm font-bold text-foreground">
-                    {event.participant?.displayName ?? 'FOOTBID auction engine'}
+                    {event.participant?.displayName ?? 'KickoffBid auction engine'}
                   </p>
 
                   <p className="mt-1 text-xs text-muted">
@@ -336,7 +336,7 @@ export function AuctionRoomView() {
           return;
         }
 
-        setRequestError('The auction room could not connect to the FOOTBID API.');
+        setRequestError('The auction room could not connect to the KickoffBid API.');
       } finally {
         if (active) {
           setLoading(false);
