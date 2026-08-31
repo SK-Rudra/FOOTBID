@@ -4,6 +4,7 @@ import {
   buildAuctionPath,
   buildMatchAuctionsPath,
   cancelAuction,
+  createManagerAuction,
   createPlayerAuction,
   getAuction,
   getAuctionHistory,
@@ -106,6 +107,21 @@ describe('auctions API', () => {
 
     expect(apiRequestMock).toHaveBeenNthCalledWith(4, '/api/v1/auctions/auction-1/cancel', {
       method: 'POST',
+    });
+  });
+
+  it('creates manager auctions through the dedicated endpoint', async () => {
+    const nomination = {
+      managerId: 'manager-1',
+      openingPrice: 12_000_000,
+      minimumIncrement: 1_000_000,
+    };
+
+    await createManagerAuction('match/id', nomination);
+
+    expect(apiRequestMock).toHaveBeenCalledWith('/api/v1/matches/match%2Fid/manager-auctions', {
+      method: 'POST',
+      body: JSON.stringify(nomination),
     });
   });
 });
