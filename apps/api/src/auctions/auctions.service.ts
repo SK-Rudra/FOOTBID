@@ -644,9 +644,12 @@ export class AuctionsService {
         userId,
       );
 
-      if (auction.type !== AuctionType.PLAYER) {
+      if (
+        auction.type !== AuctionType.PLAYER &&
+        auction.type !== AuctionType.MANAGER
+      ) {
         throw new BadRequestException(
-          'Only player auctions are supported in this phase.',
+          'This auction type is not supported in the current phase.',
         );
       }
 
@@ -829,9 +832,14 @@ export class AuctionsService {
           };
         }
 
-        if (auction.type !== AuctionType.PLAYER || !auction.playerId) {
+        const hasValidPlayer =
+          auction.type === AuctionType.PLAYER && Boolean(auction.playerId);
+        const hasValidManager =
+          auction.type === AuctionType.MANAGER && Boolean(auction.managerId);
+
+        if (!hasValidPlayer && !hasValidManager) {
           throw new BadRequestException(
-            'Only player auctions are supported in this phase.',
+            'The auction does not contain a supported asset.',
           );
         }
 
@@ -852,6 +860,24 @@ export class AuctionsService {
 
         if (!auction.endsAt || auction.endsAt.getTime() <= now.getTime()) {
           throw new ConflictException('The auction bidding period has ended.');
+        }
+
+        if (auction.type === AuctionType.MANAGER) {
+          const existingManagerOwnership =
+            await transactionClient.managerOwnership.findUnique({
+              where: {
+                participantId: participant.id,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+          if (existingManagerOwnership) {
+            throw new ConflictException(
+              'You already own a manager in this match.',
+            );
+          }
         }
 
         const highestBid = await transactionClient.bid.findFirst({
@@ -1427,6 +1453,7 @@ export class AuctionsService {
       id: string;
       matchId: string;
       playerId: string | null;
+      managerId: string | null;
       type: AuctionType;
       status: AuctionStatus;
       version: number;
@@ -1496,36 +1523,97 @@ export class AuctionsService {
       };
     }
 
-    if (auction.type !== AuctionType.PLAYER || !auction.playerId) {
+    let soldAssetPayload: { playerId: string } | { managerId: string };
+
+    if (auction.type === AuctionType.PLAYER) {
+      if (!auction.playerId) {
+        throw new ConflictException(
+          'The auction does not contain a valid player.',
+        );
+      }
+
+      await this.budgetsService.purchaseReservedFundsInTransaction(
+        transactionClient,
+        {
+          participantId: highestBid.participantId,
+          auctionId: auction.id,
+          amount: highestBid.amount,
+          itemType: AuctionType.PLAYER,
+          itemId: auction.playerId,
+          idempotencyKey: `auction:${auction.id}:purchase`,
+          description: 'Player purchased through the auction.',
+        },
+      );
+
+      await transactionClient.playerOwnership.create({
+        data: {
+          matchId: auction.matchId,
+          participantId: highestBid.participantId,
+          playerId: auction.playerId,
+          auctionId: auction.id,
+          acquisitionPrice: highestBid.amount,
+          acquiredAt: now,
+        },
+      });
+
+      soldAssetPayload = {
+        playerId: auction.playerId,
+      };
+    } else if (auction.type === AuctionType.MANAGER) {
+      if (!auction.managerId) {
+        throw new ConflictException(
+          'The auction does not contain a valid manager.',
+        );
+      }
+
+      const existingManagerOwnership =
+        await transactionClient.managerOwnership.findUnique({
+          where: {
+            participantId: highestBid.participantId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (existingManagerOwnership) {
+        throw new ConflictException(
+          'The winning participant already owns a manager.',
+        );
+      }
+
+      await this.budgetsService.purchaseReservedFundsInTransaction(
+        transactionClient,
+        {
+          participantId: highestBid.participantId,
+          auctionId: auction.id,
+          amount: highestBid.amount,
+          itemType: AuctionType.MANAGER,
+          itemId: auction.managerId,
+          idempotencyKey: `auction:${auction.id}:purchase`,
+          description: 'Manager purchased through the auction.',
+        },
+      );
+
+      await transactionClient.managerOwnership.create({
+        data: {
+          matchId: auction.matchId,
+          participantId: highestBid.participantId,
+          managerId: auction.managerId,
+          auctionId: auction.id,
+          acquisitionPrice: highestBid.amount,
+          acquiredAt: now,
+        },
+      });
+
+      soldAssetPayload = {
+        managerId: auction.managerId,
+      };
+    } else {
       throw new ConflictException(
-        'The auction does not contain a valid player.',
+        'The auction does not contain a supported asset.',
       );
     }
-
-    await this.budgetsService.purchaseReservedFundsInTransaction(
-      transactionClient,
-      {
-        participantId: highestBid.participantId,
-        auctionId: auction.id,
-        amount: highestBid.amount,
-        itemType: AuctionType.PLAYER,
-        itemId: auction.playerId,
-        idempotencyKey: `auction:${auction.id}:purchase`,
-        description: 'Player purchased through the auction.',
-      },
-    );
-
-    await transactionClient.playerOwnership.create({
-      data: {
-        matchId: auction.matchId,
-        participantId: highestBid.participantId,
-        playerId: auction.playerId,
-        auctionId: auction.id,
-        acquisitionPrice: highestBid.amount,
-        acquiredAt: now,
-      },
-    });
-
     const updateResult = await transactionClient.auction.updateMany({
       where: {
         id: auction.id,
@@ -1556,9 +1644,7 @@ export class AuctionsService {
         auctionVersion: nextVersion,
         statusAfter: AuctionStatus.SOLD,
         amount: highestBid.amount,
-        payload: {
-          playerId: auction.playerId,
-        },
+        payload: soldAssetPayload,
       },
     });
 
