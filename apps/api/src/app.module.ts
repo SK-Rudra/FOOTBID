@@ -12,6 +12,7 @@ import { validateEnvironment } from './config/environment.js';
 import { FormationsModule } from './formations/formations.module.js';
 import { PlayersModule } from './players/players.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { SquadsModule } from './squads/squads.module.js';
 import { MatchesModule } from './matches/matches.module.js';
 import { ManagersModule } from './managers/managers.module.js';
 
@@ -25,6 +26,7 @@ import { ManagersModule } from './managers/managers.module.js';
     PrismaModule,
     AuthModule,
     MatchesModule,
+    SquadsModule,
     ManagersModule,
     FormationsModule,
     PlayersModule,
