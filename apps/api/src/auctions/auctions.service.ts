@@ -830,7 +830,8 @@ export class AuctionsService {
 
       if (
         auction.type !== AuctionType.PLAYER &&
-        auction.type !== AuctionType.MANAGER
+        auction.type !== AuctionType.MANAGER &&
+        auction.type !== AuctionType.FORMATION
       ) {
         throw new BadRequestException(
           'This auction type is not supported in the current phase.',
@@ -956,6 +957,7 @@ export class AuctionsService {
             matchId: true,
             playerId: true,
             managerId: true,
+            formationId: true,
             type: true,
             status: true,
             openingPrice: true,
@@ -1020,8 +1022,11 @@ export class AuctionsService {
           auction.type === AuctionType.PLAYER && Boolean(auction.playerId);
         const hasValidManager =
           auction.type === AuctionType.MANAGER && Boolean(auction.managerId);
+        const hasValidFormation =
+          auction.type === AuctionType.FORMATION &&
+          Boolean(auction.formationId);
 
-        if (!hasValidPlayer && !hasValidManager) {
+        if (!hasValidPlayer && !hasValidManager && !hasValidFormation) {
           throw new BadRequestException(
             'The auction does not contain a supported asset.',
           );
@@ -1064,6 +1069,23 @@ export class AuctionsService {
           }
         }
 
+        if (auction.type === AuctionType.FORMATION) {
+          const existingFormationOwnership =
+            await transactionClient.formationOwnership.findUnique({
+              where: {
+                participantId: participant.id,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+          if (existingFormationOwnership) {
+            throw new ConflictException(
+              'You already own a formation in this match.',
+            );
+          }
+        }
         const highestBid = await transactionClient.bid.findFirst({
           where: {
             auctionId: auction.id,
@@ -1543,6 +1565,7 @@ export class AuctionsService {
             matchId: true,
             playerId: true,
             managerId: true,
+            formationId: true,
             type: true,
             status: true,
             version: true,
@@ -1638,6 +1661,7 @@ export class AuctionsService {
       matchId: string;
       playerId: string | null;
       managerId: string | null;
+      formationId: string | null;
       type: AuctionType;
       status: AuctionStatus;
       version: number;
@@ -1707,7 +1731,8 @@ export class AuctionsService {
       };
     }
 
-    let soldAssetPayload: { playerId: string } | { managerId: string };
+    let soldAssetPayload:
+      { playerId: string } | { managerId: string } | { formationId: string };
 
     if (auction.type === AuctionType.PLAYER) {
       if (!auction.playerId) {
@@ -1792,6 +1817,56 @@ export class AuctionsService {
 
       soldAssetPayload = {
         managerId: auction.managerId,
+      };
+    } else if (auction.type === AuctionType.FORMATION) {
+      if (!auction.formationId) {
+        throw new ConflictException(
+          'The auction does not contain a valid formation.',
+        );
+      }
+
+      const existingFormationOwnership =
+        await transactionClient.formationOwnership.findUnique({
+          where: {
+            participantId: highestBid.participantId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (existingFormationOwnership) {
+        throw new ConflictException(
+          'The winning participant already owns a formation.',
+        );
+      }
+
+      await this.budgetsService.purchaseReservedFundsInTransaction(
+        transactionClient,
+        {
+          participantId: highestBid.participantId,
+          auctionId: auction.id,
+          amount: highestBid.amount,
+          itemType: AuctionType.FORMATION,
+          itemId: auction.formationId,
+          idempotencyKey: `auction:${auction.id}:purchase`,
+          description: 'Formation purchased through the auction.',
+        },
+      );
+
+      await transactionClient.formationOwnership.create({
+        data: {
+          matchId: auction.matchId,
+          participantId: highestBid.participantId,
+          formationId: auction.formationId,
+          auctionId: auction.id,
+          acquisitionPrice: highestBid.amount,
+          acquiredAt: now,
+        },
+      });
+
+      soldAssetPayload = {
+        formationId: auction.formationId,
       };
     } else {
       throw new ConflictException(
