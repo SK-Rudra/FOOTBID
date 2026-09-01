@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -14,6 +15,7 @@ import {
   SquadRole,
 } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import type { SaveSquadDto } from './dto/squad.dto.js';
 
 const unfinishedAuctionStatuses = [
   AuctionStatus.WAITING,
@@ -236,6 +238,128 @@ function formationOption(
   };
 }
 
+function isPrismaErrorCode(error: unknown, code: string): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
+
+function roleAllowsSlot(role: SquadRole, slot: number): boolean {
+  if (role === SquadRole.STARTER) {
+    return slot >= 1 && slot <= 11;
+  }
+
+  if (role === SquadRole.SUBSTITUTE) {
+    return slot >= 12 && slot <= 18;
+  }
+
+  return role === SquadRole.RESERVE && slot >= 19 && slot <= 30;
+}
+
+function validateAssignmentBasics(assignments: SaveSquadDto['players']): void {
+  const playerIds = new Set<string>();
+  const slots = new Set<number>();
+  let captainCount = 0;
+
+  for (const assignment of assignments) {
+    if (!roleAllowsSlot(assignment.role, assignment.slot)) {
+      throw new BadRequestException(
+        `Slot ${assignment.slot} is invalid for role ${assignment.role}.`,
+      );
+    }
+
+    if (playerIds.has(assignment.playerId)) {
+      throw new BadRequestException(
+        'A player cannot occupy multiple squad slots.',
+      );
+    }
+
+    if (slots.has(assignment.slot)) {
+      throw new BadRequestException(
+        'Multiple players cannot occupy the same squad slot.',
+      );
+    }
+
+    if (assignment.isCaptain) {
+      captainCount += 1;
+
+      if (assignment.role !== SquadRole.STARTER) {
+        throw new BadRequestException('The squad captain must be a starter.');
+      }
+    }
+
+    playerIds.add(assignment.playerId);
+    slots.add(assignment.slot);
+  }
+
+  if (captainCount > 1) {
+    throw new BadRequestException('A squad cannot contain multiple captains.');
+  }
+}
+
+function formationSlotPositions(
+  shape: Prisma.JsonValue,
+): Map<number, PlayerPosition> {
+  if (typeof shape !== 'object' || shape === null || Array.isArray(shape)) {
+    throw new ConflictException(
+      'Selected formation has an invalid tactical shape.',
+    );
+  }
+
+  const slots = shape['slots'];
+
+  if (!Array.isArray(slots)) {
+    throw new ConflictException(
+      'Selected formation has an invalid tactical shape.',
+    );
+  }
+
+  const validPositions = new Set<string>(Object.values(PlayerPosition));
+  const positions = new Map<number, PlayerPosition>();
+
+  for (const entry of slots) {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      throw new ConflictException(
+        'Selected formation has an invalid tactical shape.',
+      );
+    }
+
+    const slot = entry['slot'];
+    const position = entry['position'];
+
+    if (
+      typeof slot !== 'number' ||
+      !Number.isInteger(slot) ||
+      slot < 1 ||
+      slot > 11 ||
+      typeof position !== 'string' ||
+      !validPositions.has(position) ||
+      positions.has(slot)
+    ) {
+      throw new ConflictException(
+        'Selected formation has an invalid tactical shape.',
+      );
+    }
+
+    positions.set(slot, position as PlayerPosition);
+  }
+
+  if (
+    positions.size !== 11 ||
+    Array.from({ length: 11 }, (_, index) => index + 1).some(
+      (slot) => !positions.has(slot),
+    )
+  ) {
+    throw new ConflictException(
+      'Selected formation must define exactly eleven unique starter slots.',
+    );
+  }
+
+  return positions;
+}
 @Injectable()
 export class SquadsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -566,5 +690,338 @@ export class SquadsService {
         formations,
       },
     };
+  }
+
+  async saveSquad(matchId: string, userId: string, dto: SaveSquadDto) {
+    validateAssignmentBasics(dto.players);
+
+    try {
+      return await this.prisma.$transaction(
+        async (transactionClient) => {
+          const participant =
+            await transactionClient.matchParticipant.findUnique({
+              where: {
+                matchId_userId: {
+                  matchId,
+                  userId,
+                },
+              },
+              select: {
+                id: true,
+                status: true,
+                match: {
+                  select: {
+                    id: true,
+                    status: true,
+                    dataVersion: true,
+                  },
+                },
+                squad: {
+                  select: {
+                    id: true,
+                    version: true,
+                    isLocked: true,
+                  },
+                },
+              },
+            });
+
+          if (!participant) {
+            const match = await transactionClient.match.findUnique({
+              where: {
+                id: matchId,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+            if (!match) {
+              throw new NotFoundException('Match not found.');
+            }
+
+            throw new ForbiddenException(
+              'You are not a participant in this match.',
+            );
+          }
+
+          if (participant.status === ParticipantStatus.LEFT) {
+            throw new ForbiddenException(
+              'You are not an active participant in this match.',
+            );
+          }
+
+          if (participant.match.status !== MatchStatus.SQUAD_BUILDING) {
+            throw new ConflictException(
+              'Squad drafts can only be edited during squad building.',
+            );
+          }
+
+          if (participant.squad?.isLocked) {
+            throw new ConflictException('A locked squad cannot be edited.');
+          }
+
+          if (participant.squad) {
+            if (participant.squad.version !== dto.version) {
+              throw new ConflictException(
+                'This squad draft is stale. Reload it before saving.',
+              );
+            }
+          } else if (dto.version !== 0) {
+            throw new ConflictException(
+              'A new squad draft must start at version 0.',
+            );
+          }
+
+          const [formation, manager, formationOwnership, managerOwnership] =
+            await Promise.all([
+              transactionClient.formation.findUnique({
+                where: {
+                  id: dto.formationId,
+                },
+                select: {
+                  id: true,
+                  shape: true,
+                  tier: true,
+                  isNeutral: true,
+                  isActive: true,
+                  dataVersion: true,
+                },
+              }),
+              transactionClient.manager.findUnique({
+                where: {
+                  id: dto.managerId,
+                },
+                select: {
+                  id: true,
+                  tier: true,
+                  isNeutral: true,
+                  isActive: true,
+                  dataVersion: true,
+                },
+              }),
+              transactionClient.formationOwnership.findFirst({
+                where: {
+                  matchId,
+                  participantId: participant.id,
+                  formationId: dto.formationId,
+                },
+                select: {
+                  id: true,
+                },
+              }),
+              transactionClient.managerOwnership.findFirst({
+                where: {
+                  matchId,
+                  participantId: participant.id,
+                  managerId: dto.managerId,
+                },
+                select: {
+                  id: true,
+                },
+              }),
+            ]);
+
+          if (!formation) {
+            throw new NotFoundException('Formation not found.');
+          }
+
+          if (!manager) {
+            throw new NotFoundException('Manager not found.');
+          }
+
+          const neutralFormationAllowed =
+            formation.tier === ContentTier.FREE &&
+            formation.isNeutral &&
+            formation.isActive &&
+            formation.dataVersion === participant.match.dataVersion;
+
+          if (!neutralFormationAllowed && !formationOwnership) {
+            throw new ForbiddenException(
+              'This formation is not available to your squad.',
+            );
+          }
+
+          const neutralManagerAllowed =
+            manager.tier === ContentTier.FREE &&
+            manager.isNeutral &&
+            manager.isActive &&
+            manager.dataVersion === participant.match.dataVersion;
+
+          if (!neutralManagerAllowed && !managerOwnership) {
+            throw new ForbiddenException(
+              'This manager is not available to your squad.',
+            );
+          }
+
+          const slotPositions = formationSlotPositions(formation.shape);
+          const playerIds = dto.players.map(({ playerId }) => playerId);
+
+          const ownerships = await transactionClient.playerOwnership.findMany({
+            where: {
+              matchId,
+              participantId: participant.id,
+              playerId: {
+                in: playerIds,
+              },
+            },
+            select: {
+              playerId: true,
+              acquisitionPrice: true,
+              player: {
+                select: {
+                  primaryPosition: true,
+                  secondaryPositions: true,
+                  overall: true,
+                },
+              },
+            },
+          });
+
+          if (ownerships.length !== playerIds.length) {
+            throw new ForbiddenException(
+              'Every selected player must be owned by this participant.',
+            );
+          }
+
+          const ownershipByPlayerId = new Map(
+            ownerships.map((ownership) => [ownership.playerId, ownership]),
+          );
+
+          const assignments = dto.players.map((assignment) => {
+            const ownership = ownershipByPlayerId.get(assignment.playerId);
+
+            if (!ownership) {
+              throw new ForbiddenException(
+                'Every selected player must be owned by this participant.',
+              );
+            }
+
+            const assignedPosition =
+              assignment.role === SquadRole.STARTER
+                ? slotPositions.get(assignment.slot)
+                : ownership.player.primaryPosition;
+
+            if (!assignedPosition) {
+              throw new BadRequestException(
+                `Formation slot ${assignment.slot} is unavailable.`,
+              );
+            }
+
+            if (
+              assignedPosition === PlayerPosition.GK &&
+              ownership.player.primaryPosition !== PlayerPosition.GK &&
+              !ownership.player.secondaryPositions.includes(PlayerPosition.GK)
+            ) {
+              throw new BadRequestException(
+                'The goalkeeper slot requires a goalkeeper.',
+              );
+            }
+
+            return {
+              matchId,
+              playerId: assignment.playerId,
+              slot: assignment.slot,
+              role: assignment.role,
+              isCaptain: assignment.isCaptain,
+              assignedPosition,
+              acquisitionPrice: ownership.acquisitionPrice,
+              overall: ownership.player.overall,
+            };
+          });
+
+          const overallRating = average(
+            assignments
+              .filter(({ role }) => role === SquadRole.STARTER)
+              .map(({ overall }) => overall),
+          );
+
+          let squadId: string;
+
+          if (participant.squad) {
+            const updated = await transactionClient.squad.updateMany({
+              where: {
+                id: participant.squad.id,
+                version: dto.version,
+                isLocked: false,
+              },
+              data: {
+                name: dto.name.trim(),
+                formationId: formation.id,
+                managerId: manager.id,
+                overallRating,
+                version: {
+                  increment: 1,
+                },
+              },
+            });
+
+            if (updated.count !== 1) {
+              throw new ConflictException(
+                'This squad draft changed while it was being saved.',
+              );
+            }
+
+            squadId = participant.squad.id;
+
+            await transactionClient.squadPlayer.deleteMany({
+              where: {
+                squadId,
+              },
+            });
+          } else {
+            const created = await transactionClient.squad.create({
+              data: {
+                participantId: participant.id,
+                formationId: formation.id,
+                managerId: manager.id,
+                name: dto.name.trim(),
+                chemistry: 0,
+                overallRating,
+                version: 1,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+            squadId = created.id;
+          }
+
+          if (assignments.length > 0) {
+            await transactionClient.squadPlayer.createMany({
+              data: assignments.map(({ overall: _overall, ...assignment }) => ({
+                ...assignment,
+                squadId,
+              })),
+            });
+          }
+
+          const savedSquad = await transactionClient.squad.findUniqueOrThrow({
+            where: {
+              id: squadId,
+            },
+            select: squadSelect,
+          });
+
+          return squadResponse(savedSquad);
+        },
+        {
+          isolationLevel: 'Serializable',
+        },
+      );
+    } catch (error: unknown) {
+      if (
+        isPrismaErrorCode(error, 'P2002') ||
+        isPrismaErrorCode(error, 'P2004') ||
+        isPrismaErrorCode(error, 'P2034')
+      ) {
+        throw new ConflictException(
+          'The squad draft conflicted with another update. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
   }
 }
