@@ -21,6 +21,7 @@ import {
   AuctionParamsDto,
   MatchAuctionParamsDto,
 } from './dto/auction-params.dto.js';
+import { CreateFormationAuctionDto } from './dto/create-formation-auction.dto.js';
 import { CreateManagerAuctionDto } from './dto/create-manager-auction.dto.js';
 import { CreatePlayerAuctionDto } from './dto/create-auction.dto.js';
 import { PlaceBidDto } from './dto/place-bid.dto.js';
@@ -55,6 +56,20 @@ export class AuctionsController {
     @Body() dto: CreateManagerAuctionDto,
   ) {
     const result = await this.auctionsService.createManagerAuction(
+      params.matchId,
+      identity.userId,
+      dto,
+    );
+
+    return this.publish(result);
+  }
+  @Post('matches/:matchId/formation-auctions')
+  async createFormationAuction(
+    @CurrentUser() identity: AuthenticatedIdentity,
+    @Param() params: MatchAuctionParamsDto,
+    @Body() dto: CreateFormationAuctionDto,
+  ) {
+    const result = await this.auctionsService.createFormationAuction(
       params.matchId,
       identity.userId,
       dto,
