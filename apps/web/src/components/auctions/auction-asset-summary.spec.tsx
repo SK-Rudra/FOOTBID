@@ -30,7 +30,7 @@ const managerAuction: Auction = {
     fullName: 'Nayeem Rahman',
     nationalityCode: 'BD',
     tacticalStyle: 'High Press',
-    preferredFormations: ['4-3-3-attack', '4-4-2'],
+    preferredFormations: ['4-3-3', '4-4-2'],
     passingPhilosophy: 'Short Passing',
     defensivePhilosophy: 'Front Foot',
     pressingStyle: 'High Press',
@@ -74,7 +74,7 @@ describe('AuctionAssetSummary', () => {
 
     expect(screen.getByText('Short Passing')).toBeInTheDocument();
     expect(screen.getByText('Front Foot')).toBeInTheDocument();
-    expect(screen.getByText('4-3-3-attack')).toBeInTheDocument();
+    expect(screen.getByText('4-3-3')).toBeInTheDocument();
     expect(screen.getByText('+3')).toBeInTheDocument();
     expect(screen.getByText('84')).toBeInTheDocument();
   });

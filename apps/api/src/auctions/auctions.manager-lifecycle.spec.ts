@@ -121,7 +121,7 @@ const manager = {
   fullName: 'Nayeem Rahman',
   nationalityCode: 'BD',
   tacticalStyle: 'High Press',
-  preferredFormations: ['4-3-3-attack', '4-4-2'],
+  preferredFormations: ['4-3-3', '4-4-2'],
   passingPhilosophy: 'Short Passing',
   defensivePhilosophy: 'Front Foot',
   pressingStyle: 'High Press',

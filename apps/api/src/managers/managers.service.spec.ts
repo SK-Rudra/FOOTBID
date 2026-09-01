@@ -51,7 +51,7 @@ const managerRecord = {
   fullName: 'Nayeem Rahman',
   nationalityCode: 'BD',
   tacticalStyle: 'High Press',
-  preferredFormations: ['4-3-3-attack', '4-4-2'],
+  preferredFormations: ['4-3-3', '4-4-2'],
   passingPhilosophy: 'Short Passing',
   defensivePhilosophy: 'Front Foot',
   pressingStyle: 'High Press',
@@ -98,7 +98,7 @@ describe('ManagersService', () => {
     const query = Object.assign(new QueryManagersDto(), {
       search: 'Nayeem',
       tacticalStyle: 'High Press',
-      preferredFormation: '4-3-3-attack',
+      preferredFormation: '4-3-3',
       nationalityCode: 'BD',
       minOverall: 80,
       sortBy: ManagerSortField.MARKET_VALUE,
@@ -179,7 +179,7 @@ describe('ManagersService', () => {
       {
         nationalityCode: 'BD',
         tacticalStyle: 'High Press',
-        preferredFormations: ['4-3-3-attack', '4-4-2'],
+        preferredFormations: ['4-3-3', '4-4-2'],
         passingPhilosophy: 'Short Passing',
         defensivePhilosophy: 'Front Foot',
         pressingStyle: 'High Press',
@@ -198,7 +198,7 @@ describe('ManagersService', () => {
 
     expect(result.nationalities).toEqual(['BD']);
     expect(result.tacticalStyles).toEqual(['High Press']);
-    expect(result.preferredFormations).toEqual(['4-3-3-attack', '4-4-2']);
+    expect(result.preferredFormations).toEqual(['4-3-3', '4-4-2']);
     expect(result.passingPhilosophies).toEqual(['Short Passing']);
     expect(result.defensivePhilosophies).toEqual(['Front Foot']);
     expect(result.pressingStyles).toEqual(['High Press']);
