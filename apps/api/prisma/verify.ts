@@ -332,7 +332,7 @@ async function main(): Promise<void> {
       },
     });
 
-    await prisma.squadPlayer.create({
+    const squadGoalkeeper = await prisma.squadPlayer.create({
       data: {
         slot: 1,
         role: SquadRole.STARTER,
@@ -484,6 +484,69 @@ async function main(): Promise<void> {
     );
 
     console.log('PASS: nested relationship queries');
+    await expectDatabaseRejection(
+      'a substitute cannot be selected as captain',
+      async () =>
+        prisma.squadPlayer.create({
+          data: {
+            slot: 12,
+            role: SquadRole.SUBSTITUTE,
+            isCaptain: true,
+            assignedPosition: PlayerPosition.ST,
+            acquisitionPrice: 2_500_000,
+            match: {
+              connect: { id: match.id },
+            },
+            squad: {
+              connect: { id: squadOne.id },
+            },
+            player: {
+              connect: { id: striker.id },
+            },
+          },
+        }),
+    );
+
+    await prisma.squadPlayer.update({
+      where: { id: squadGoalkeeper.id },
+      data: {
+        isCaptain: true,
+      },
+    });
+
+    await expectDatabaseRejection(
+      'a squad cannot contain multiple captains',
+      async () =>
+        prisma.squadPlayer.create({
+          data: {
+            slot: 2,
+            role: SquadRole.STARTER,
+            isCaptain: true,
+            assignedPosition: PlayerPosition.ST,
+            acquisitionPrice: 2_500_000,
+            match: {
+              connect: { id: match.id },
+            },
+            squad: {
+              connect: { id: squadOne.id },
+            },
+            player: {
+              connect: { id: striker.id },
+            },
+          },
+        }),
+    );
+
+    await expectDatabaseRejection(
+      'a squad cannot have a negative version',
+      async () =>
+        prisma.squad.update({
+          where: { id: squadOne.id },
+          data: {
+            version: -1,
+          },
+        }),
+    );
 
     await expectDatabaseRejection(
       'duplicate player ownership within one match is rejected',

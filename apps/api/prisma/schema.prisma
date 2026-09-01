@@ -414,6 +414,7 @@ model Squad {
   name          String @default("Match Squad") @db.VarChar(80)
   chemistry     Int    @default(0)
   overallRating Int    @default(0)
+  version       Int    @default(0)
 
   /// Server-only until kickoff. Never expose this field in pre-match API responses.
   tactics   Json?     @db.JsonB
@@ -439,6 +440,7 @@ model SquadPlayer {
   playerId         String
   slot             Int
   role             SquadRole      @default(STARTER)
+  isCaptain        Boolean        @default(false)
   assignedPosition PlayerPosition
   acquisitionPrice Int            @default(0)
   createdAt        DateTime       @default(now()) @db.Timestamptz(3)
