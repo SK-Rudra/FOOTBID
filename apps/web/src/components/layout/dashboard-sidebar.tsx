@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   BrainCircuit,
@@ -60,6 +60,8 @@ const navigation: NavigationItem[] = [
   {
     label: 'Squad',
     icon: UsersRound,
+    href: '/squad',
+    mobile: true,
   },
   {
     label: 'Auction room',
