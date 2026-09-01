@@ -3,6 +3,7 @@
 import {
   BrainCircuit,
   Gavel,
+  Grid3X3,
   LayoutDashboard,
   LockKeyhole,
   Search,
@@ -42,6 +43,12 @@ const navigation: NavigationItem[] = [
     label: 'Managers',
     icon: BrainCircuit,
     href: '/managers',
+    mobile: true,
+  },
+  {
+    label: 'Formations',
+    icon: Grid3X3,
+    href: '/formations',
     mobile: true,
   },
   {
@@ -104,7 +111,7 @@ function SidebarItem({
 
   const className = cn(
     'flex items-center gap-3 rounded-xl text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-    compact ? 'min-w-16 flex-col justify-center gap-1 px-2 py-2 text-[0.625rem]' : 'px-3.5 py-3',
+    compact ? 'min-w-12 flex-col justify-center gap-1 px-2 py-2 text-[0.625rem]' : 'px-3.5 py-3',
     active ? 'bg-accent/12 text-accent' : 'text-muted hover:bg-white/[0.055] hover:text-foreground',
     !item.href && 'cursor-not-allowed opacity-55',
   );
@@ -142,7 +149,7 @@ export function DashboardSidebar({ displayName, email }: DashboardSidebarProps) 
           <Badge tone="accent">Pre-season</Badge>
 
           <p className="mt-3 text-xs leading-5 text-muted">
-            Secure wallets and live player and manager auctions are online.
+            Secure wallets and live player, manager, and formation auctions are online.
           </p>
         </div>
 

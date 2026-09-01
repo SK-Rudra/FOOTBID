@@ -17,7 +17,7 @@ describe('managers API', () => {
     const path = buildManagerCatalogPath({
       search: '  Nayeem Rahman  ',
       tacticalStyle: 'High Press',
-      preferredFormation: '4-3-3-attack',
+      preferredFormation: '4-3-3',
       leagueId: 'league-1',
       clubId: 'club-1',
       nationalityCode: 'BD',
@@ -30,7 +30,7 @@ describe('managers API', () => {
     });
 
     expect(path).toBe(
-      '/api/v1/managers?search=Nayeem+Rahman&tacticalStyle=High+Press&preferredFormation=4-3-3-attack&leagueId=league-1&clubId=club-1&nationalityCode=BD&minOverall=80&maxOverall=90&sortBy=marketValue&sortOrder=desc&page=2&pageSize=12',
+      '/api/v1/managers?search=Nayeem+Rahman&tacticalStyle=High+Press&preferredFormation=4-3-3&leagueId=league-1&clubId=club-1&nationalityCode=BD&minOverall=80&maxOverall=90&sortBy=marketValue&sortOrder=desc&page=2&pageSize=12',
     );
 
     await getManagers({

@@ -5,20 +5,20 @@ import {
 } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BudgetsService } from '../budgets/budgets.service.js';
-import type { PrismaService } from '../prisma/prisma.service.js';
 import {
   AuctionStatus,
   AuctionType,
   MatchStatus,
 } from '../generated/prisma/enums.js';
+import type { PrismaService } from '../prisma/prisma.service.js';
 import { AuctionsService } from './auctions.service.js';
-import type { CreateManagerAuctionDto } from './dto/create-manager-auction.dto.js';
+import type { CreateFormationAuctionDto } from './dto/create-formation-auction.dto.js';
 
 function createTransactionMock() {
   const matchFindUnique = vi.fn();
   const participantFindUnique = vi.fn();
-  const managerFindFirst = vi.fn();
-  const managerOwnershipFindUnique = vi.fn();
+  const formationFindFirst = vi.fn();
+  const formationOwnershipFindUnique = vi.fn();
   const auctionFindFirst = vi.fn();
   const auctionCreate = vi.fn();
   const auctionFindUniqueOrThrow = vi.fn();
@@ -31,11 +31,11 @@ function createTransactionMock() {
     matchParticipant: {
       findUnique: participantFindUnique,
     },
-    manager: {
-      findFirst: managerFindFirst,
+    formation: {
+      findFirst: formationFindFirst,
     },
-    managerOwnership: {
-      findUnique: managerOwnershipFindUnique,
+    formationOwnership: {
+      findUnique: formationOwnershipFindUnique,
     },
     auction: {
       findFirst: auctionFindFirst,
@@ -51,8 +51,8 @@ function createTransactionMock() {
     client,
     matchFindUnique,
     participantFindUnique,
-    managerFindFirst,
-    managerOwnershipFindUnique,
+    formationFindFirst,
+    formationOwnershipFindUnique,
     auctionFindFirst,
     auctionCreate,
     auctionFindUniqueOrThrow,
@@ -78,9 +78,9 @@ function createService(transactionClient: object) {
   };
 }
 
-const dto: CreateManagerAuctionDto = {
-  managerId: 'manager-1',
-  openingPrice: 5_000_000,
+const dto: CreateFormationAuctionDto = {
+  formationId: 'formation-1',
+  openingPrice: 8_000_000,
   minimumIncrement: 500_000,
 };
 
@@ -90,42 +90,40 @@ const participant = {
   status: 'JOINED',
 };
 
-const manager = {
-  id: 'manager-1',
-  fullName: 'Nayeem Rahman',
-  nationalityCode: 'BD',
-  tacticalStyle: 'High Press',
-  preferredFormations: ['4-3-3', '4-4-2'],
-  passingPhilosophy: 'Short Passing',
-  defensivePhilosophy: 'Front Foot',
-  pressingStyle: 'High Press',
-  overall: 82,
-  attacking: 84,
-  defending: 78,
-  adaptability: 81,
-  manManagement: 83,
-  attackingBonus: 3,
-  midfieldBonus: 2,
-  defendingBonus: 1,
-  chemistryBonus: 2,
-  marketValue: 12_000_000,
-  tier: 'PREMIUM',
-  club: {
-    id: 'club-1',
-    name: 'Dhaka Comets',
-    shortName: 'COMETS',
+const formation = {
+  id: 'formation-1',
+  code: '4-3-3',
+  name: 'Attacking 4-3-3',
+  description: 'Wide attacking shape with coordinated pressing.',
+  shape: {
+    version: 1,
+    slots: [],
   },
+  buildUpStyle: 'Fast Build Up',
+  attackingStyle: 'Wide',
+  defensiveStyle: 'Front Foot',
+  width: 68,
+  tempo: 72,
+  pressingIntensity: 70,
+  attackingBonus: 2,
+  midfieldBonus: 1,
+  defendingBonus: 0,
+  chemistryBonus: 1,
+  marketValue: 10_000_000,
+  tier: 'PREMIUM',
+  isNeutral: false,
 };
 
 function createdAuctionRecord() {
-  const now = new Date('2026-08-31T15:00:00.000Z');
+  const now = new Date('2026-09-01T03:00:00.000Z');
 
   return {
     id: 'auction-1',
     matchId: 'match-1',
     playerId: null,
-    managerId: manager.id,
-    type: AuctionType.MANAGER,
+    managerId: null,
+    formationId: formation.id,
+    type: AuctionType.FORMATION,
     status: AuctionStatus.WAITING,
     openingPrice: dto.openingPrice,
     currentPrice: dto.openingPrice,
@@ -143,7 +141,8 @@ function createdAuctionRecord() {
       createdById: 'host-1',
     },
     player: null,
-    manager,
+    manager: null,
+    formation,
     nominatedByParticipant: {
       id: participant.id,
       userId: participant.userId,
@@ -160,7 +159,7 @@ function createdAuctionRecord() {
   };
 }
 
-describe('AuctionsService manager creation', () => {
+describe('AuctionsService formation creation', () => {
   let transactionMock: ReturnType<typeof createTransactionMock>;
   let service: AuctionsService;
 
@@ -173,10 +172,10 @@ describe('AuctionsService manager creation', () => {
       status: MatchStatus.WAITING,
     });
     transactionMock.participantFindUnique.mockResolvedValue(participant);
-    transactionMock.managerFindFirst.mockResolvedValue({
-      id: manager.id,
+    transactionMock.formationFindFirst.mockResolvedValue({
+      id: formation.id,
     });
-    transactionMock.managerOwnershipFindUnique.mockResolvedValue(null);
+    transactionMock.formationOwnershipFindUnique.mockResolvedValue(null);
     transactionMock.auctionFindFirst.mockResolvedValue(null);
     transactionMock.auctionCreate.mockResolvedValue({
       id: 'auction-1',
@@ -191,14 +190,30 @@ describe('AuctionsService manager creation', () => {
     service = createService(transactionMock.client).service;
   });
 
-  it('creates a waiting manager auction and nomination event', async () => {
-    const result = await service.createManagerAuction('match-1', 'host-1', dto);
+  it('creates a waiting formation auction and nomination event', async () => {
+    const result = await service.createFormationAuction(
+      'match-1',
+      'host-1',
+      dto,
+    );
 
-    expect(transactionMock.managerFindFirst).toHaveBeenCalledWith({
+    expect(transactionMock.formationFindFirst).toHaveBeenCalledWith({
       where: {
-        id: manager.id,
+        id: formation.id,
         isActive: true,
         isNeutral: false,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    expect(transactionMock.formationOwnershipFindUnique).toHaveBeenCalledWith({
+      where: {
+        matchId_formationId: {
+          matchId: 'match-1',
+          formationId: formation.id,
+        },
       },
       select: {
         id: true,
@@ -208,9 +223,9 @@ describe('AuctionsService manager creation', () => {
     expect(transactionMock.auctionCreate).toHaveBeenCalledWith({
       data: {
         matchId: 'match-1',
-        managerId: manager.id,
+        formationId: formation.id,
         nominatedByParticipantId: participant.id,
-        type: AuctionType.MANAGER,
+        type: AuctionType.FORMATION,
         status: AuctionStatus.WAITING,
         openingPrice: dto.openingPrice,
         currentPrice: dto.openingPrice,
@@ -228,7 +243,7 @@ describe('AuctionsService manager creation', () => {
         participantId: participant.id,
         type: 'NOMINATED',
         payload: {
-          managerId: manager.id,
+          formationId: formation.id,
           minimumIncrement: dto.minimumIncrement,
         },
       }),
@@ -240,17 +255,19 @@ describe('AuctionsService manager creation', () => {
       auction: {
         id: 'auction-1',
         playerId: null,
-        managerId: manager.id,
-        type: AuctionType.MANAGER,
-        manager: {
-          id: manager.id,
-          fullName: manager.fullName,
+        managerId: null,
+        formationId: formation.id,
+        type: AuctionType.FORMATION,
+        formation: {
+          id: formation.id,
+          code: formation.code,
+          name: formation.name,
         },
       },
     });
   });
 
-  it('allows only the match host to nominate a manager', async () => {
+  it('allows only the match host to nominate a formation', async () => {
     transactionMock.matchFindUnique.mockResolvedValue({
       id: 'match-1',
       createdById: 'different-user',
@@ -258,29 +275,29 @@ describe('AuctionsService manager creation', () => {
     });
 
     await expect(
-      service.createManagerAuction('match-1', 'host-1', dto),
+      service.createFormationAuction('match-1', 'host-1', dto),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(transactionMock.managerFindFirst).not.toHaveBeenCalled();
+    expect(transactionMock.formationFindFirst).not.toHaveBeenCalled();
   });
 
-  it('rejects inactive, neutral, or missing managers', async () => {
-    transactionMock.managerFindFirst.mockResolvedValue(null);
+  it('rejects inactive, neutral, or missing formations', async () => {
+    transactionMock.formationFindFirst.mockResolvedValue(null);
 
     await expect(
-      service.createManagerAuction('match-1', 'host-1', dto),
+      service.createFormationAuction('match-1', 'host-1', dto),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(transactionMock.auctionCreate).not.toHaveBeenCalled();
   });
 
-  it('rejects a manager already owned in the match', async () => {
-    transactionMock.managerOwnershipFindUnique.mockResolvedValue({
+  it('rejects a formation already owned in the match', async () => {
+    transactionMock.formationOwnershipFindUnique.mockResolvedValue({
       id: 'ownership-1',
     });
 
     await expect(
-      service.createManagerAuction('match-1', 'host-1', dto),
+      service.createFormationAuction('match-1', 'host-1', dto),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(transactionMock.auctionCreate).not.toHaveBeenCalled();
@@ -292,9 +309,19 @@ describe('AuctionsService manager creation', () => {
     });
 
     await expect(
-      service.createManagerAuction('match-1', 'host-1', dto),
+      service.createFormationAuction('match-1', 'host-1', dto),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(transactionMock.auctionCreate).not.toHaveBeenCalled();
+  });
+
+  it('maps a database uniqueness race to a formation conflict', async () => {
+    transactionMock.auctionCreate.mockRejectedValue({
+      code: 'P2002',
+    });
+
+    await expect(
+      service.createFormationAuction('match-1', 'host-1', dto),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

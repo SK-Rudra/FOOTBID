@@ -25,6 +25,7 @@ import type {
   AuctionHistoryQueryDto,
   AuctionListQueryDto,
 } from './dto/auction-query.dto.js';
+import type { CreateFormationAuctionDto } from './dto/create-formation-auction.dto.js';
 import type { CreateManagerAuctionDto } from './dto/create-manager-auction.dto.js';
 import type { CreatePlayerAuctionDto } from './dto/create-auction.dto.js';
 import type { PlaceBidDto } from './dto/place-bid.dto.js';
@@ -46,6 +47,7 @@ const auctionDetailSelect = {
   matchId: true,
   playerId: true,
   managerId: true,
+  formationId: true,
   type: true,
   status: true,
   openingPrice: true,
@@ -119,6 +121,28 @@ const auctionDetailSelect = {
           shortName: true,
         },
       },
+    },
+  },
+  formation: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      description: true,
+      shape: true,
+      buildUpStyle: true,
+      attackingStyle: true,
+      defensiveStyle: true,
+      width: true,
+      tempo: true,
+      pressingIntensity: true,
+      attackingBonus: true,
+      midfieldBonus: true,
+      defendingBonus: true,
+      chemistryBonus: true,
+      marketValue: true,
+      tier: true,
+      isNeutral: true,
     },
   },
   nominatedByParticipant: {
@@ -217,6 +241,7 @@ function auctionResponse(auction: AuctionDetailRecord) {
     matchStatus: auction.match.status,
     playerId: auction.playerId,
     managerId: auction.managerId,
+    formationId: auction.formationId,
     type: auction.type,
     status: auction.status,
     openingPrice: auction.openingPrice,
@@ -237,6 +262,7 @@ function auctionResponse(auction: AuctionDetailRecord) {
     serverTime: new Date(),
     player: auction.player,
     manager: auction.manager,
+    formation: auction.formation,
     nominatedBy: participantResponse(auction.nominatedByParticipant),
     winner: auction.winnerParticipant
       ? participantResponse(auction.winnerParticipant)
@@ -603,6 +629,164 @@ export class AuctionsService {
       throw error;
     }
   }
+  async createFormationAuction(
+    matchId: string,
+    userId: string,
+    dto: CreateFormationAuctionDto,
+  ): Promise<AuctionMutationResult> {
+    try {
+      return await this.withSerializableRetry(async (transactionClient) => {
+        const match = await transactionClient.match.findUnique({
+          where: {
+            id: matchId,
+          },
+          select: {
+            id: true,
+            createdById: true,
+            status: true,
+          },
+        });
+
+        if (!match) {
+          throw new NotFoundException('Match not found.');
+        }
+
+        if (match.createdById !== userId) {
+          throw new ForbiddenException(
+            'Only the match host can nominate a formation.',
+          );
+        }
+
+        if (
+          match.status !== MatchStatus.WAITING &&
+          match.status !== MatchStatus.AUCTION
+        ) {
+          throw new ConflictException(
+            'This match is not accepting formation nominations.',
+          );
+        }
+
+        const participant = await this.requireParticipant(
+          transactionClient,
+          matchId,
+          userId,
+        );
+
+        const formation = await transactionClient.formation.findFirst({
+          where: {
+            id: dto.formationId,
+            isActive: true,
+            isNeutral: false,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (!formation) {
+          throw new NotFoundException(
+            'Active auctionable formation not found.',
+          );
+        }
+
+        const existingOwnership =
+          await transactionClient.formationOwnership.findUnique({
+            where: {
+              matchId_formationId: {
+                matchId,
+                formationId: formation.id,
+              },
+            },
+            select: {
+              id: true,
+            },
+          });
+
+        if (existingOwnership) {
+          throw new ConflictException(
+            'This formation is already owned in the match.',
+          );
+        }
+
+        const openAuction = await transactionClient.auction.findFirst({
+          where: {
+            matchId,
+            status: {
+              in: [
+                AuctionStatus.WAITING,
+                AuctionStatus.ACTIVE,
+                AuctionStatus.LAST_CALL,
+              ],
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (openAuction) {
+          throw new ConflictException(
+            'The match already has an unfinished auction.',
+          );
+        }
+
+        const auction = await transactionClient.auction.create({
+          data: {
+            matchId,
+            formationId: formation.id,
+            nominatedByParticipantId: participant.id,
+            type: AuctionType.FORMATION,
+            status: AuctionStatus.WAITING,
+            openingPrice: dto.openingPrice,
+            currentPrice: dto.openingPrice,
+            minimumIncrement: dto.minimumIncrement,
+            version: 0,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        await transactionClient.auctionEvent.create({
+          data: {
+            auctionId: auction.id,
+            participantId: participant.id,
+            type: AuctionEventType.NOMINATED,
+            sequence: 1,
+            auctionVersion: 0,
+            statusAfter: AuctionStatus.WAITING,
+            amount: dto.openingPrice,
+            payload: {
+              formationId: formation.id,
+              minimumIncrement: dto.minimumIncrement,
+            },
+          },
+        });
+
+        const createdAuction =
+          await transactionClient.auction.findUniqueOrThrow({
+            where: {
+              id: auction.id,
+            },
+            select: auctionDetailSelect,
+          });
+
+        return {
+          auction: auctionResponse(createdAuction),
+          eventType: AuctionEventType.NOMINATED,
+          replayed: false,
+        };
+      });
+    } catch (error: unknown) {
+      if (isPrismaErrorCode(error, 'P2002')) {
+        throw new ConflictException(
+          'This formation has already been nominated in the match.',
+        );
+      }
+
+      throw error;
+    }
+  }
   async startAuction(
     auctionId: string,
     userId: string,
@@ -646,7 +830,8 @@ export class AuctionsService {
 
       if (
         auction.type !== AuctionType.PLAYER &&
-        auction.type !== AuctionType.MANAGER
+        auction.type !== AuctionType.MANAGER &&
+        auction.type !== AuctionType.FORMATION
       ) {
         throw new BadRequestException(
           'This auction type is not supported in the current phase.',
@@ -772,6 +957,7 @@ export class AuctionsService {
             matchId: true,
             playerId: true,
             managerId: true,
+            formationId: true,
             type: true,
             status: true,
             openingPrice: true,
@@ -836,8 +1022,11 @@ export class AuctionsService {
           auction.type === AuctionType.PLAYER && Boolean(auction.playerId);
         const hasValidManager =
           auction.type === AuctionType.MANAGER && Boolean(auction.managerId);
+        const hasValidFormation =
+          auction.type === AuctionType.FORMATION &&
+          Boolean(auction.formationId);
 
-        if (!hasValidPlayer && !hasValidManager) {
+        if (!hasValidPlayer && !hasValidManager && !hasValidFormation) {
           throw new BadRequestException(
             'The auction does not contain a supported asset.',
           );
@@ -880,6 +1069,23 @@ export class AuctionsService {
           }
         }
 
+        if (auction.type === AuctionType.FORMATION) {
+          const existingFormationOwnership =
+            await transactionClient.formationOwnership.findUnique({
+              where: {
+                participantId: participant.id,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+          if (existingFormationOwnership) {
+            throw new ConflictException(
+              'You already own a formation in this match.',
+            );
+          }
+        }
         const highestBid = await transactionClient.bid.findFirst({
           where: {
             auctionId: auction.id,
@@ -1359,6 +1565,7 @@ export class AuctionsService {
             matchId: true,
             playerId: true,
             managerId: true,
+            formationId: true,
             type: true,
             status: true,
             version: true,
@@ -1454,6 +1661,7 @@ export class AuctionsService {
       matchId: string;
       playerId: string | null;
       managerId: string | null;
+      formationId: string | null;
       type: AuctionType;
       status: AuctionStatus;
       version: number;
@@ -1523,7 +1731,8 @@ export class AuctionsService {
       };
     }
 
-    let soldAssetPayload: { playerId: string } | { managerId: string };
+    let soldAssetPayload:
+      { playerId: string } | { managerId: string } | { formationId: string };
 
     if (auction.type === AuctionType.PLAYER) {
       if (!auction.playerId) {
@@ -1608,6 +1817,56 @@ export class AuctionsService {
 
       soldAssetPayload = {
         managerId: auction.managerId,
+      };
+    } else if (auction.type === AuctionType.FORMATION) {
+      if (!auction.formationId) {
+        throw new ConflictException(
+          'The auction does not contain a valid formation.',
+        );
+      }
+
+      const existingFormationOwnership =
+        await transactionClient.formationOwnership.findUnique({
+          where: {
+            participantId: highestBid.participantId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (existingFormationOwnership) {
+        throw new ConflictException(
+          'The winning participant already owns a formation.',
+        );
+      }
+
+      await this.budgetsService.purchaseReservedFundsInTransaction(
+        transactionClient,
+        {
+          participantId: highestBid.participantId,
+          auctionId: auction.id,
+          amount: highestBid.amount,
+          itemType: AuctionType.FORMATION,
+          itemId: auction.formationId,
+          idempotencyKey: `auction:${auction.id}:purchase`,
+          description: 'Formation purchased through the auction.',
+        },
+      );
+
+      await transactionClient.formationOwnership.create({
+        data: {
+          matchId: auction.matchId,
+          participantId: highestBid.participantId,
+          formationId: auction.formationId,
+          auctionId: auction.id,
+          acquisitionPrice: highestBid.amount,
+          acquiredAt: now,
+        },
+      });
+
+      soldAssetPayload = {
+        formationId: auction.formationId,
       };
     } else {
       throw new ConflictException(

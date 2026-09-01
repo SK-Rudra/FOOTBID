@@ -303,21 +303,36 @@ model Manager {
 }
 
 model Formation {
-  id          String      @id @default(cuid())
-  code        String      @unique @db.VarChar(20)
-  name        String      @unique @db.VarChar(80)
-  description String?     @db.Text
-  shape       Json        @db.JsonB
-  tier        ContentTier @default(FREE)
-  isNeutral   Boolean     @default(false)
-  dataVersion String      @default("1.0.0") @db.VarChar(32)
-  createdAt   DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime    @updatedAt @db.Timestamptz(3)
+  id                String      @id @default(cuid())
+  code              String      @unique @db.VarChar(20)
+  name              String      @unique @db.VarChar(80)
+  description       String?     @db.Text
+  shape             Json        @db.JsonB
+  buildUpStyle      String      @default("Balanced") @db.VarChar(40)
+  attackingStyle    String      @default("Balanced") @db.VarChar(40)
+  defensiveStyle    String      @default("Balanced") @db.VarChar(40)
+  width             Int         @default(50)
+  tempo             Int         @default(50)
+  pressingIntensity Int         @default(50)
+  attackingBonus    Int         @default(0)
+  midfieldBonus     Int         @default(0)
+  defendingBonus    Int         @default(0)
+  chemistryBonus    Int         @default(0)
+  marketValue       Int         @default(0)
+  tier              ContentTier @default(FREE)
+  isNeutral         Boolean     @default(false)
+  isActive          Boolean     @default(true)
+  dataVersion       String      @default("1.0.0") @db.VarChar(32)
+  createdAt         DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime    @updatedAt @db.Timestamptz(3)
 
-  auctions Auction[]
-  squads   Squad[]
+  auctions            Auction[]
+  squads              Squad[]
+  formationOwnerships FormationOwnership[]
 
-  @@index([tier, isNeutral])
+  @@index([tier, isNeutral, isActive])
+  @@index([buildUpStyle])
+  @@index([marketValue])
 }
 
 model Match {
@@ -338,14 +353,15 @@ model Match {
   createdAt            DateTime    @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
 
-  createdBy         User               @relation("MatchHost", fields: [createdById], references: [id], onDelete: Restrict)
-  winner            User?              @relation("MatchWinner", fields: [winnerUserId], references: [id], onDelete: SetNull)
-  participants      MatchParticipant[]
-  squadsPlayers     SquadPlayer[]
-  auctions          Auction[]
-  events            MatchEvent[]
-  playerOwnerships  PlayerOwnership[]
-  managerOwnerships ManagerOwnership[]
+  createdBy           User                 @relation("MatchHost", fields: [createdById], references: [id], onDelete: Restrict)
+  winner              User?                @relation("MatchWinner", fields: [winnerUserId], references: [id], onDelete: SetNull)
+  participants        MatchParticipant[]
+  squadsPlayers       SquadPlayer[]
+  auctions            Auction[]
+  events              MatchEvent[]
+  playerOwnerships    PlayerOwnership[]
+  managerOwnerships   ManagerOwnership[]
+  formationOwnerships FormationOwnership[]
 
   @@index([createdById])
   @@index([winnerUserId])
@@ -379,6 +395,7 @@ model MatchParticipant {
   nominatedAuctions  Auction[]           @relation("AuctionNominator")
   playerOwnerships   PlayerOwnership[]
   managerOwnership   ManagerOwnership?
+  formationOwnership FormationOwnership?
   auctionEvents      AuctionEvent[]
   budgetTransactions BudgetTransaction[]
   events             MatchEvent[]
@@ -469,6 +486,7 @@ model Auction {
   budgetTransactions     BudgetTransaction[]
   playerOwnership        PlayerOwnership?
   managerOwnership       ManagerOwnership?
+  formationOwnership     FormationOwnership?
   events                 AuctionEvent[]
 
   @@unique([matchId, playerId])
@@ -535,6 +553,25 @@ model ManagerOwnership {
   @@unique([matchId, managerId])
   @@index([participantId, acquiredAt])
   @@index([managerId])
+}
+
+model FormationOwnership {
+  id               String   @id @default(cuid())
+  matchId          String
+  participantId    String   @unique
+  formationId      String
+  auctionId        String   @unique
+  acquisitionPrice Int
+  acquiredAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  match       Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  participant MatchParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  formation   Formation        @relation(fields: [formationId], references: [id], onDelete: Restrict)
+  auction     Auction          @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, formationId])
+  @@index([participantId, acquiredAt])
+  @@index([formationId])
 }
 
 model AuctionEvent {

@@ -1,13 +1,15 @@
 'use client';
 
-import { BrainCircuit, LoaderCircle, UserRoundPlus } from 'lucide-react';
+import { BrainCircuit, Grid3X3, LoaderCircle, UserRoundPlus } from 'lucide-react';
 import { type FormEvent, useEffect, useState } from 'react';
 import {
+  createFormationAuction,
   createManagerAuction,
   createPlayerAuction,
   type AuctionMutationResult,
 } from '@/lib/auctions-api';
 import { ApiRequestError } from '@/lib/api-client';
+import { getFormations, type CatalogFormation } from '@/lib/formations-api';
 import { getManagers, type CatalogManager } from '@/lib/managers-api';
 import { getPlayers, type CatalogPlayer } from '@/lib/players-api';
 import { Button } from '@/components/ui/button';
@@ -17,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 
-type AuctionAssetType = 'PLAYER' | 'MANAGER';
+type AuctionAssetType = 'PLAYER' | 'MANAGER' | 'FORMATION';
 
 interface AuctionNominationFormProps {
   matchId: string;
@@ -34,6 +36,12 @@ const MIN_OPENING_PRICE = 100_000;
 const MAX_AUCTION_PRICE = 150_000_000;
 const MIN_INCREMENT = 100_000;
 const MAX_INCREMENT = 10_000_000;
+
+const assetLabels: Record<AuctionAssetType, string> = {
+  PLAYER: 'Player',
+  MANAGER: 'Manager',
+  FORMATION: 'Formation',
+};
 
 function formatPrice(amount: number): string {
   const millions = amount / 1_000_000;
@@ -53,6 +61,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
   const [assetType, setAssetType] = useState<AuctionAssetType>('PLAYER');
   const [players, setPlayers] = useState<CatalogPlayer[]>([]);
   const [managers, setManagers] = useState<CatalogManager[]>([]);
+  const [formations, setFormations] = useState<CatalogFormation[]>([]);
   const [assetId, setAssetId] = useState('');
   const [openingPrice, setOpeningPrice] = useState('');
   const [minimumIncrement, setMinimumIncrement] = useState('1000000');
@@ -67,7 +76,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
 
     const loadAssets = async () => {
       try {
-        const [playerResponse, managerResponse] = await Promise.all([
+        const [playerResponse, managerResponse, formationResponse] = await Promise.all([
           getPlayers(
             {
               sortBy: 'overall',
@@ -90,6 +99,17 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
               signal: controller.signal,
             },
           ),
+          getFormations(
+            {
+              sortBy: 'marketValue',
+              sortOrder: 'desc',
+              page: 1,
+              pageSize: 50,
+            },
+            {
+              signal: controller.signal,
+            },
+          ),
         ]);
 
         if (!active) {
@@ -98,6 +118,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
 
         setPlayers(playerResponse.data);
         setManagers(managerResponse.data);
+        setFormations(formationResponse.data.filter((formation) => !formation.isNeutral));
         setLoadError(null);
 
         const firstPlayer = playerResponse.data[0];
@@ -108,7 +129,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
         }
       } catch {
         if (active) {
-          setLoadError('The player and manager catalogues could not be loaded.');
+          setLoadError('The player, manager, and formation catalogues could not be loaded.');
         }
       } finally {
         if (active) {
@@ -125,11 +146,23 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
     };
   }, []);
 
+  function assetsForType(nextType: AuctionAssetType) {
+    if (nextType === 'PLAYER') {
+      return players;
+    }
+
+    if (nextType === 'MANAGER') {
+      return managers;
+    }
+
+    return formations;
+  }
+
   function chooseAssetType(nextType: AuctionAssetType): void {
     setAssetType(nextType);
     setErrors({});
 
-    const firstAsset = nextType === 'PLAYER' ? players[0] : managers[0];
+    const firstAsset = assetsForType(nextType)[0];
 
     setAssetId(firstAsset?.id ?? '');
     setOpeningPrice(firstAsset ? String(firstAsset.marketValue) : '');
@@ -142,10 +175,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
       assetId: undefined,
     }));
 
-    const selectedAsset =
-      assetType === 'PLAYER'
-        ? players.find((player) => player.id === selectedAssetId)
-        : managers.find((manager) => manager.id === selectedAssetId);
+    const selectedAsset = assetsForType(assetType).find((asset) => asset.id === selectedAssetId);
 
     if (selectedAsset) {
       setOpeningPrice(String(selectedAsset.marketValue));
@@ -162,9 +192,10 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
     const parsedOpeningPrice = Number(openingPrice);
     const parsedMinimumIncrement = Number(minimumIncrement);
     const nextErrors: NominationErrors = {};
+    const assetLabel = assetLabels[assetType];
 
     if (!assetId) {
-      nextErrors.assetId = `Select a ${assetType.toLowerCase()} to nominate.`;
+      nextErrors.assetId = `Select a ${assetLabel.toLowerCase()} to nominate.`;
     }
 
     if (!validMoneyAmount(parsedOpeningPrice, MIN_OPENING_PRICE, MAX_AUCTION_PRICE)) {
@@ -184,28 +215,38 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
     setSubmitting(true);
 
     try {
-      const result =
-        assetType === 'PLAYER'
-          ? await createPlayerAuction(matchId, {
-              playerId: assetId,
-              openingPrice: parsedOpeningPrice,
-              minimumIncrement: parsedMinimumIncrement,
-            })
-          : await createManagerAuction(matchId, {
-              managerId: assetId,
-              openingPrice: parsedOpeningPrice,
-              minimumIncrement: parsedMinimumIncrement,
-            });
+      let result: AuctionMutationResult;
+
+      if (assetType === 'PLAYER') {
+        result = await createPlayerAuction(matchId, {
+          playerId: assetId,
+          openingPrice: parsedOpeningPrice,
+          minimumIncrement: parsedMinimumIncrement,
+        });
+      } else if (assetType === 'MANAGER') {
+        result = await createManagerAuction(matchId, {
+          managerId: assetId,
+          openingPrice: parsedOpeningPrice,
+          minimumIncrement: parsedMinimumIncrement,
+        });
+      } else {
+        result = await createFormationAuction(matchId, {
+          formationId: assetId,
+          openingPrice: parsedOpeningPrice,
+          minimumIncrement: parsedMinimumIncrement,
+        });
+      }
 
       onCreated(result);
 
       const assetName =
         result.auction.player?.shortName ??
         result.auction.manager?.fullName ??
-        `The ${assetType.toLowerCase()}`;
+        result.auction.formation?.name ??
+        `The ${assetLabel.toLowerCase()}`;
 
       showToast({
-        title: `${assetType === 'PLAYER' ? 'Player' : 'Manager'} nominated`,
+        title: `${assetLabel} nominated`,
         description: `${assetName} is ready for auction.`,
         tone: 'success',
       });
@@ -223,8 +264,9 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
     }
   }
 
-  const currentAssets = assetType === 'PLAYER' ? players : managers;
+  const currentAssets = assetsForType(assetType);
   const noAssets = currentAssets.length === 0;
+  const assetLabel = assetLabels[assetType];
 
   return (
     <Card tone="glass">
@@ -233,16 +275,18 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
           <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
             {assetType === 'PLAYER' ? (
               <UserRoundPlus aria-hidden="true" className="size-5" />
-            ) : (
+            ) : assetType === 'MANAGER' ? (
               <BrainCircuit aria-hidden="true" className="size-5" />
+            ) : (
+              <Grid3X3 aria-hidden="true" className="size-5" />
             )}
           </div>
 
           <div>
             <CardTitle>Nominate the next auction asset</CardTitle>
             <CardDescription>
-              Choose a player or manager and configure the opening bid. Only the match host can
-              create an auction.
+              Choose a player, manager, or formation and configure the opening bid. Only the match
+              host can create an auction.
             </CardDescription>
           </div>
         </div>
@@ -250,7 +294,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
 
       <CardContent>
         <div
-          className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-line bg-black/20 p-1.5"
+          className="mb-5 grid grid-cols-3 gap-2 rounded-2xl border border-line bg-black/20 p-1.5"
           aria-label="Auction asset type"
         >
           <button
@@ -259,8 +303,8 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
             aria-pressed={assetType === 'PLAYER'}
             className={
               assetType === 'PLAYER'
-                ? 'rounded-xl bg-accent px-4 py-3 text-sm font-black text-black'
-                : 'rounded-xl px-4 py-3 text-sm font-bold text-muted transition hover:bg-white/[0.05] hover:text-foreground'
+                ? 'rounded-xl bg-accent px-3 py-3 text-sm font-black text-black'
+                : 'rounded-xl px-3 py-3 text-sm font-bold text-muted transition hover:bg-white/[0.05] hover:text-foreground'
             }
           >
             Players
@@ -272,11 +316,24 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
             aria-pressed={assetType === 'MANAGER'}
             className={
               assetType === 'MANAGER'
-                ? 'rounded-xl bg-info px-4 py-3 text-sm font-black text-black'
-                : 'rounded-xl px-4 py-3 text-sm font-bold text-muted transition hover:bg-white/[0.05] hover:text-foreground'
+                ? 'rounded-xl bg-info px-3 py-3 text-sm font-black text-black'
+                : 'rounded-xl px-3 py-3 text-sm font-bold text-muted transition hover:bg-white/[0.05] hover:text-foreground'
             }
           >
             Managers
+          </button>
+
+          <button
+            type="button"
+            onClick={() => chooseAssetType('FORMATION')}
+            aria-pressed={assetType === 'FORMATION'}
+            className={
+              assetType === 'FORMATION'
+                ? 'rounded-xl bg-warning px-3 py-3 text-sm font-black text-black'
+                : 'rounded-xl px-3 py-3 text-sm font-bold text-muted transition hover:bg-white/[0.05] hover:text-foreground'
+            }
+          >
+            Formations
           </button>
         </div>
 
@@ -287,7 +344,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
         ) : (
           <form onSubmit={submitNomination} className="grid gap-5 lg:grid-cols-3">
             <FormField
-              label={assetType === 'PLAYER' ? 'Player' : 'Manager'}
+              label={assetLabel}
               htmlFor="auction-asset"
               error={errors.assetId}
               required
@@ -303,7 +360,7 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
                 {assetsLoading ? (
                   <option value="">Loading assets...</option>
                 ) : noAssets ? (
-                  <option value="">No {assetType.toLowerCase()}s available</option>
+                  <option value="">No {assetLabel.toLowerCase()}s available</option>
                 ) : assetType === 'PLAYER' ? (
                   players.map((player) => (
                     <option key={player.id} value={player.id}>
@@ -311,11 +368,18 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
                       {formatPrice(player.marketValue)}
                     </option>
                   ))
-                ) : (
+                ) : assetType === 'MANAGER' ? (
                   managers.map((manager) => (
                     <option key={manager.id} value={manager.id}>
                       {manager.fullName} / {manager.tacticalStyle} / OVR {manager.overall} /{' '}
                       {formatPrice(manager.marketValue)}
+                    </option>
+                  ))
+                ) : (
+                  formations.map((formation) => (
+                    <option key={formation.id} value={formation.id}>
+                      {formation.name} / {formation.code} / {formation.buildUpStyle} /{' '}
+                      {formatPrice(formation.marketValue)}
                     </option>
                   ))
                 )}
@@ -384,11 +448,13 @@ export function AuctionNominationForm({ matchId, onCreated }: AuctionNominationF
                   <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
                 ) : assetType === 'PLAYER' ? (
                   <UserRoundPlus aria-hidden="true" className="size-4" />
-                ) : (
+                ) : assetType === 'MANAGER' ? (
                   <BrainCircuit aria-hidden="true" className="size-4" />
+                ) : (
+                  <Grid3X3 aria-hidden="true" className="size-4" />
                 )}
 
-                {submitting ? 'Nominating...' : `Nominate ${assetType.toLowerCase()}`}
+                {submitting ? 'Nominating...' : `Nominate ${assetLabel.toLowerCase()}`}
               </Button>
             </div>
           </form>

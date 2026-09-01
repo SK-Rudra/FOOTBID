@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/modal';
 const navigation = [
   { label: 'Players', href: '/players' },
   { label: 'Managers', href: '/managers' },
+  { label: 'Formations', href: '/formations' },
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Game format', href: '/#game-format' },
   { label: 'Design system', href: '/#experience' },
