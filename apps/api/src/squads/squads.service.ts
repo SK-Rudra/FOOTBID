@@ -15,7 +15,7 @@ import {
   SquadRole,
 } from '../generated/prisma/enums.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import type { SaveSquadDto } from './dto/squad.dto.js';
+import type { LockSquadDto, SaveSquadDto } from './dto/squad.dto.js';
 
 const unfinishedAuctionStatuses = [
   AuctionStatus.WAITING,
@@ -359,6 +359,57 @@ function formationSlotPositions(
   }
 
   return positions;
+}
+function validateLockableSquad(squad: SquadRecord): void {
+  const starters = squad.players.filter(
+    ({ role }) => role === SquadRole.STARTER,
+  );
+
+  if (starters.length !== 11) {
+    throw new BadRequestException(
+      'A locked squad must contain exactly eleven starters.',
+    );
+  }
+
+  const starterSlots = new Set(starters.map(({ slot }) => slot));
+
+  if (
+    starterSlots.size !== 11 ||
+    Array.from({ length: 11 }, (_, index) => index + 1).some(
+      (slot) => !starterSlots.has(slot),
+    )
+  ) {
+    throw new BadRequestException(
+      'Every formation starter slot must be filled before locking.',
+    );
+  }
+
+  const captains = starters.filter(({ isCaptain }) => isCaptain);
+
+  if (captains.length !== 1) {
+    throw new BadRequestException(
+      'A locked squad must have exactly one starter captain.',
+    );
+  }
+
+  const goalkeepers = starters.filter(
+    ({ assignedPosition }) => assignedPosition === PlayerPosition.GK,
+  );
+
+  if (goalkeepers.length !== 1) {
+    throw new BadRequestException(
+      'A locked squad must contain exactly one goalkeeper slot.',
+    );
+  }
+
+  const goalkeeper = goalkeepers[0]!.player;
+
+  if (
+    goalkeeper.primaryPosition !== PlayerPosition.GK &&
+    !goalkeeper.secondaryPositions.includes(PlayerPosition.GK)
+  ) {
+    throw new BadRequestException('The goalkeeper slot requires a goalkeeper.');
+  }
 }
 @Injectable()
 export class SquadsService {
@@ -1018,6 +1069,206 @@ export class SquadsService {
       ) {
         throw new ConflictException(
           'The squad draft conflicted with another update. Reload and try again.',
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  async lockSquad(matchId: string, userId: string, dto: LockSquadDto) {
+    try {
+      return await this.prisma.$transaction(
+        async (transactionClient) => {
+          const participant =
+            await transactionClient.matchParticipant.findUnique({
+              where: {
+                matchId_userId: {
+                  matchId,
+                  userId,
+                },
+              },
+              select: {
+                id: true,
+                status: true,
+                match: {
+                  select: {
+                    id: true,
+                    status: true,
+                  },
+                },
+                squad: {
+                  select: squadSelect,
+                },
+              },
+            });
+
+          if (!participant) {
+            const match = await transactionClient.match.findUnique({
+              where: {
+                id: matchId,
+              },
+              select: {
+                id: true,
+              },
+            });
+
+            if (!match) {
+              throw new NotFoundException('Match not found.');
+            }
+
+            throw new ForbiddenException(
+              'You are not a participant in this match.',
+            );
+          }
+
+          if (participant.status === ParticipantStatus.LEFT) {
+            throw new ForbiddenException(
+              'You are not an active participant in this match.',
+            );
+          }
+
+          if (!participant.squad) {
+            throw new NotFoundException(
+              'Create and save a squad before locking it.',
+            );
+          }
+
+          if (
+            participant.match.status !== MatchStatus.SQUAD_BUILDING &&
+            participant.match.status !== MatchStatus.READY
+          ) {
+            throw new ConflictException(
+              'This match is not accepting squad locks.',
+            );
+          }
+
+          if (participant.squad.isLocked) {
+            return {
+              matchStatus: participant.match.status,
+              replayed: true,
+              squad: squadResponse(participant.squad),
+            };
+          }
+
+          if (participant.match.status !== MatchStatus.SQUAD_BUILDING) {
+            throw new ConflictException(
+              'This match is no longer accepting squad locks.',
+            );
+          }
+
+          if (participant.squad.version !== dto.version) {
+            throw new ConflictException(
+              'This squad draft is stale. Reload it before locking.',
+            );
+          }
+
+          validateLockableSquad(participant.squad);
+
+          const lockedAt = new Date();
+
+          const locked = await transactionClient.squad.updateMany({
+            where: {
+              id: participant.squad.id,
+              version: dto.version,
+              isLocked: false,
+            },
+            data: {
+              isLocked: true,
+              lockedAt,
+              version: {
+                increment: 1,
+              },
+            },
+          });
+
+          if (locked.count !== 1) {
+            throw new ConflictException(
+              'This squad changed while it was being locked.',
+            );
+          }
+
+          const participantReady =
+            await transactionClient.matchParticipant.updateMany({
+              where: {
+                id: participant.id,
+                status: {
+                  not: ParticipantStatus.LEFT,
+                },
+              },
+              data: {
+                status: ParticipantStatus.READY,
+                readyAt: lockedAt,
+              },
+            });
+
+          if (participantReady.count !== 1) {
+            throw new ConflictException(
+              'The participant state changed while locking the squad.',
+            );
+          }
+
+          const lockedSquadCount = await transactionClient.squad.count({
+            where: {
+              isLocked: true,
+              participant: {
+                matchId,
+                status: {
+                  not: ParticipantStatus.LEFT,
+                },
+              },
+            },
+          });
+
+          const bothSquadsLocked = lockedSquadCount === 2;
+
+          if (bothSquadsLocked) {
+            const matchReady = await transactionClient.match.updateMany({
+              where: {
+                id: matchId,
+                status: MatchStatus.SQUAD_BUILDING,
+              },
+              data: {
+                status: MatchStatus.READY,
+              },
+            });
+
+            if (matchReady.count !== 1) {
+              throw new ConflictException(
+                'The match state changed while squads were being finalized.',
+              );
+            }
+          }
+
+          const lockedSquad = await transactionClient.squad.findUniqueOrThrow({
+            where: {
+              id: participant.squad.id,
+            },
+            select: squadSelect,
+          });
+
+          return {
+            matchStatus: bothSquadsLocked
+              ? MatchStatus.READY
+              : MatchStatus.SQUAD_BUILDING,
+            replayed: false,
+            squad: squadResponse(lockedSquad),
+          };
+        },
+        {
+          isolationLevel: 'Serializable',
+        },
+      );
+    } catch (error: unknown) {
+      if (isPrismaErrorCode(error, 'P2004')) {
+        throw new BadRequestException(
+          'The squad failed database lock validation.',
+        );
+      }
+
+      if (isPrismaErrorCode(error, 'P2034')) {
+        throw new ConflictException(
+          'The squad changed while it was being locked. Reload and try again.',
         );
       }
 

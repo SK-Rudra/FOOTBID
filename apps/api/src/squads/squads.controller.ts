@@ -11,7 +11,7 @@ import {
 import type { AuthenticatedIdentity } from '../auth/auth.types.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { MatchParamsDto } from '../matches/dto/match.dto.js';
-import { SaveSquadDto } from './dto/squad.dto.js';
+import { LockSquadDto, SaveSquadDto } from './dto/squad.dto.js';
 import { SquadsService } from './squads.service.js';
 
 @Controller('matches')
@@ -37,6 +37,16 @@ export class SquadsController {
     @Body() dto: SaveSquadDto,
   ) {
     return this.squadsService.saveSquad(params.matchId, identity.userId, dto);
+  }
+
+  @Post(':matchId/squad/lock')
+  @HttpCode(HttpStatus.OK)
+  lockSquad(
+    @CurrentUser() identity: AuthenticatedIdentity,
+    @Param() params: MatchParamsDto,
+    @Body() dto: LockSquadDto,
+  ) {
+    return this.squadsService.lockSquad(params.matchId, identity.userId, dto);
   }
 
   @Get(':matchId/squad')

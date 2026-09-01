@@ -60,3 +60,10 @@ export class SaveSquadDto {
   @Type(() => SquadPlayerAssignmentDto)
   players!: SquadPlayerAssignmentDto[];
 }
+
+export class LockSquadDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  version!: number;
+}
