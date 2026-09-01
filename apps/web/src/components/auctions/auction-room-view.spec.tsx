@@ -112,6 +112,7 @@ const auction: Auction = {
   matchStatus: 'AUCTION',
   playerId: 'player-1',
   managerId: null,
+  formationId: null,
   type: 'PLAYER',
   status: 'ACTIVE',
   openingPrice: 10_000_000,
@@ -149,6 +150,7 @@ const auction: Auction = {
     },
   },
   manager: null,
+  formation: null,
   nominatedBy: {
     id: 'participant-host',
     userId: 'host-user',

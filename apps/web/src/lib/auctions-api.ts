@@ -1,4 +1,5 @@
 import { apiRequest } from './api-client';
+import type { CatalogFormation } from './formations-api';
 import type { PlayerPosition } from './players-api';
 import type { WalletItemType, WalletMatchStatus } from './wallet-api';
 
@@ -78,6 +79,8 @@ export interface AuctionManager {
   tier: 'FREE' | 'PREMIUM';
   club: AuctionPlayerClub | null;
 }
+export type AuctionFormation = CatalogFormation;
+
 export interface AuctionHighestBid {
   id: string;
   participantId: string;
@@ -95,6 +98,7 @@ export interface Auction {
   matchStatus: WalletMatchStatus;
   playerId: string | null;
   managerId: string | null;
+  formationId: string | null;
   type: WalletItemType;
   status: AuctionStatus;
   openingPrice: number;
@@ -111,6 +115,7 @@ export interface Auction {
   serverTime: string;
   player: AuctionPlayer | null;
   manager: AuctionManager | null;
+  formation: AuctionFormation | null;
   nominatedBy: AuctionParticipant;
   winner: AuctionParticipant | null;
   highestBid: AuctionHighestBid | null;
@@ -175,6 +180,11 @@ export interface CreatePlayerAuctionInput {
 
 export interface CreateManagerAuctionInput {
   managerId: string;
+  openingPrice: number;
+  minimumIncrement: number;
+}
+export interface CreateFormationAuctionInput {
+  formationId: string;
   openingPrice: number;
   minimumIncrement: number;
 }
@@ -280,6 +290,20 @@ export function createManagerAuction(
 ): Promise<AuctionMutationResult> {
   return apiRequest<AuctionMutationResult>(
     `/api/v1/matches/${encodedIdentifier(matchId)}/manager-auctions`,
+    {
+      ...init,
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+}
+export function createFormationAuction(
+  matchId: string,
+  input: CreateFormationAuctionInput,
+  init: RequestInit = {},
+): Promise<AuctionMutationResult> {
+  return apiRequest<AuctionMutationResult>(
+    `/api/v1/matches/${encodedIdentifier(matchId)}/formation-auctions`,
     {
       ...init,
       method: 'POST',

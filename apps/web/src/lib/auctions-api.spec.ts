@@ -4,6 +4,7 @@ import {
   buildAuctionPath,
   buildMatchAuctionsPath,
   cancelAuction,
+  createFormationAuction,
   createManagerAuction,
   createPlayerAuction,
   getAuction,
@@ -120,6 +121,21 @@ describe('auctions API', () => {
     await createManagerAuction('match/id', nomination);
 
     expect(apiRequestMock).toHaveBeenCalledWith('/api/v1/matches/match%2Fid/manager-auctions', {
+      method: 'POST',
+      body: JSON.stringify(nomination),
+    });
+  });
+
+  it('creates formation auctions through the dedicated endpoint', async () => {
+    const nomination = {
+      formationId: 'formation-1',
+      openingPrice: 10_000_000,
+      minimumIncrement: 1_000_000,
+    };
+
+    await createFormationAuction('match/id', nomination);
+
+    expect(apiRequestMock).toHaveBeenCalledWith('/api/v1/matches/match%2Fid/formation-auctions', {
       method: 'POST',
       body: JSON.stringify(nomination),
     });

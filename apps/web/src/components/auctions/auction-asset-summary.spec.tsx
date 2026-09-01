@@ -10,6 +10,7 @@ const managerAuction: Auction = {
   matchStatus: 'AUCTION',
   playerId: null,
   managerId: 'manager-1',
+  formationId: null,
   type: 'MANAGER',
   status: 'WAITING',
   openingPrice: 12_000_000,
@@ -51,6 +52,7 @@ const managerAuction: Auction = {
       shortName: 'COMETS',
     },
   },
+  formation: null,
   nominatedBy: {
     id: 'participant-1',
     userId: 'host-1',
@@ -62,6 +64,53 @@ const managerAuction: Auction = {
   bidCount: 0,
 };
 
+const formationAuction: Auction = {
+  ...managerAuction,
+  id: 'auction-formation',
+  playerId: null,
+  managerId: null,
+  formationId: 'formation-1',
+  type: 'FORMATION',
+  openingPrice: 10_000_000,
+  currentPrice: 10_000_000,
+  minimumNextBid: 10_000_000,
+  manager: null,
+  formation: {
+    id: 'formation-1',
+    code: '4-3-3',
+    name: 'Attacking 4-3-3',
+    description: 'Wide attacking shape with coordinated pressing.',
+    shape: {
+      version: 1,
+      slots: [
+        { slot: 1, position: 'GK', x: 50, y: 90 },
+        { slot: 2, position: 'LB', x: 15, y: 72 },
+        { slot: 3, position: 'CB', x: 38, y: 75 },
+        { slot: 4, position: 'CB', x: 62, y: 75 },
+        { slot: 5, position: 'RB', x: 85, y: 72 },
+        { slot: 6, position: 'CM', x: 35, y: 53 },
+        { slot: 7, position: 'CM', x: 65, y: 53 },
+        { slot: 8, position: 'CAM', x: 50, y: 42 },
+        { slot: 9, position: 'LW', x: 20, y: 22 },
+        { slot: 10, position: 'ST', x: 50, y: 18 },
+        { slot: 11, position: 'RW', x: 80, y: 22 },
+      ],
+    },
+    buildUpStyle: 'Fast Build Up',
+    attackingStyle: 'Wide',
+    defensiveStyle: 'Front Foot',
+    width: 68,
+    tempo: 72,
+    pressingIntensity: 70,
+    attackingBonus: 2,
+    midfieldBonus: 1,
+    defendingBonus: 0,
+    chemistryBonus: 1,
+    marketValue: 10_000_000,
+    tier: 'PREMIUM',
+    isNeutral: false,
+  },
+};
 describe('AuctionAssetSummary', () => {
   it('renders manager tactics, ratings, and bonuses', () => {
     render(<AuctionAssetSummary auction={managerAuction} />);
@@ -77,5 +126,25 @@ describe('AuctionAssetSummary', () => {
     expect(screen.getByText('4-3-3')).toBeInTheDocument();
     expect(screen.getByText('+3')).toBeInTheDocument();
     expect(screen.getByText('84')).toBeInTheDocument();
+  });
+
+  it('renders a formation pitch, styles, and bonuses', () => {
+    render(<AuctionAssetSummary auction={formationAuction} />);
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Attacking 4-3-3',
+      }),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByRole('img', {
+        name: '4-3-3 formation shape',
+      }),
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('Fast Build Up')).toBeInTheDocument();
+    expect(screen.getByText('Wide')).toBeInTheDocument();
+    expect(screen.getByText('+2')).toBeInTheDocument();
   });
 });

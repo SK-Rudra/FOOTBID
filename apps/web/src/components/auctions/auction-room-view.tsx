@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { LiveBidControl } from '@/components/auctions/live-bid-control';
 import { AuctionNominationForm } from '@/components/auctions/auction-nomination-form';
+import { FormationPitch } from '@/components/formations/formation-pitch';
 import { CountdownTimer } from '@/components/ui/countdown-timer';
 import { StatCard } from '@/components/game/stat-card';
 import { DashboardSidebar } from '@/components/layout/dashboard-sidebar';
@@ -111,6 +112,17 @@ function eventTitle(event: AuctionEvent): string {
   return event.type.replaceAll('_', ' ');
 }
 
+function auctionAssetName(auction: Auction): string {
+  if (auction.type === 'FORMATION') {
+    return auction.formation?.name ?? 'Formation auction';
+  }
+
+  if (auction.type === 'MANAGER') {
+    return auction.manager?.fullName ?? 'Manager auction';
+  }
+
+  return auction.player?.shortName ?? 'Player auction';
+}
 function PlayerSummary({ auction }: { auction: Auction }) {
   const player = auction.player;
 
@@ -317,7 +329,109 @@ function ManagerSummary({ auction }: { auction: Auction }) {
   );
 }
 
+function FormationSummary({ auction }: { auction: Auction }) {
+  const formation = auction.formation;
+
+  if (!formation) {
+    return (
+      <EmptyState
+        title="Formation data unavailable"
+        description="This auction does not contain a formation record."
+      />
+    );
+  }
+
+  const intensity = [
+    ['WID', formation.width],
+    ['TEM', formation.tempo],
+    ['PRS', formation.pressingIntensity],
+  ];
+
+  const bonuses = [
+    ['Attack', formation.attackingBonus],
+    ['Midfield', formation.midfieldBonus],
+    ['Defence', formation.defendingBonus],
+    ['Chemistry', formation.chemistryBonus],
+  ];
+
+  return (
+    <Card tone="accent">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={statusTones[auction.status]}>{statusLabel(auction.status)}</Badge>
+
+            <Badge tone="accent">Formation</Badge>
+            <Badge tone="info">{formation.code}</Badge>
+          </div>
+
+          {auction.endsAt && (auction.status === 'ACTIVE' || auction.status === 'LAST_CALL') && (
+            <CountdownTimer targetTime={auction.endsAt} label="Auction time remaining" />
+          )}
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        <div className="grid gap-7 md:grid-cols-[minmax(15rem,0.72fr)_minmax(0,1.28fr)]">
+          <FormationPitch formation={formation} className="mx-auto w-full max-w-sm" />
+
+          <div className="min-w-0">
+            <h2 className="text-3xl font-black tracking-[-0.05em] text-foreground">
+              {formation.name}
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted">
+              {formation.description ?? 'Balanced tactical formation.'}
+            </p>
+
+            <p className="mt-3 text-xs font-bold text-muted">
+              Nominated by {auction.nominatedBy.displayName}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Badge>{formation.buildUpStyle}</Badge>
+              <Badge>{formation.attackingStyle}</Badge>
+              <Badge>{formation.defensiveStyle}</Badge>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {intensity.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-line bg-black/20 px-2 py-3 text-center"
+                >
+                  <p className="font-mono text-lg font-black text-foreground">{value}</p>
+
+                  <p className="mt-1 text-[0.625rem] font-extrabold tracking-[0.12em] text-muted">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {bonuses.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between rounded-xl border border-line bg-black/20 px-3 py-2"
+                >
+                  <span className="text-xs font-bold text-muted">{label}</span>
+
+                  <span className="font-mono text-sm font-black text-accent">+{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 export function AuctionAssetSummary({ auction }: { auction: Auction }) {
+  if (auction.type === 'FORMATION') {
+    return <FormationSummary auction={auction} />;
+  }
+
   if (auction.type === 'MANAGER') {
     return <ManagerSummary auction={auction} />;
   }
@@ -862,8 +976,8 @@ export function AuctionRoomView() {
               title="Waiting for a nomination"
               description={
                 wallet.isHost
-                  ? 'Use the nomination form above to select the first player or manager.'
-                  : 'There are no auctions in this match yet. Waiting for the match host to nominate a player or manager.'
+                  ? 'Use the nomination form above to select the first player, manager, or formation.'
+                  : 'There are no auctions in this match yet. Waiting for the match host to nominate a player, manager, or formation.'
               }
               icon={UsersRound}
               className="mt-7"
@@ -934,9 +1048,7 @@ export function AuctionRoomView() {
                           >
                             <div className="flex items-center justify-between gap-3">
                               <p className="truncate text-sm font-extrabold text-foreground">
-                                {item.type === 'MANAGER'
-                                  ? (item.manager?.fullName ?? 'Manager auction')
-                                  : (item.player?.shortName ?? 'Player auction')}
+                                {auctionAssetName(item)}
                               </p>
 
                               <Badge tone={statusTones[item.status]}>
